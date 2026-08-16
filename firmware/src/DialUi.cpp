@@ -36,6 +36,13 @@ lv_style_t DialUi::mainStyle_;
 bool DialUi::stylesInitialised_ = false;
 DialUi dialUi;  // global instance
 
+// Arc progress animation: one reusable descriptor + exec callback. File scope
+// so updateArc can stop/resume without the class header exposing LVGL internals.
+static lv_anim_t arcAnim_;
+static void arcAnimCb_(void* obj, int32_t v) {
+  lv_arc_set_value(static_cast<lv_obj_t*>(obj), static_cast<int16_t>(v));
+}
+
 // ── colour mapping ───────────────────────────────────────────────────────
 lv_color_t DialUi::colorForPhase(DialPhase phase, bool stale) {
   if (stale) return kGray;
@@ -169,39 +176,61 @@ void DialUi::buildMainScreen() {
   lv_obj_add_flag(clockSubLabel_, LV_OBJ_FLAG_HIDDEN);
 
   // ── idle three-column stats ────────────────────────────────────────────
-  // Four rows per side, mirroring the HTML v6.1 mockup. Each stat is:
-  //   "#5d6478 名称#\n值"   (name in dim gray on line 1, value in white on line 2)
-  // This matches the HTML order: <span class="k">名称</span><span class="v">值</span>.
-  // The left column labels are right-aligned, the right column left-aligned.
-  // Positions mirror the docs/ui.html v6.1 grid: 22px margin + 106px side
-  // columns + 1fr clock column + 106px + 22px = 360px.
-  const lv_coord_t colLeftX = 22;
-  const lv_coord_t colRightX = 232;
-  const lv_coord_t colWidth = 106;
-  const lv_coord_t rowY[] = { 112, 158, 204, 250 };  // idle zone, centred on clock
+  // Four rows per side. Value labels (white) and name labels (gray) are
+  // separate objects so no recolor parsing is needed — each label has exactly
+  // one colour. Everything sits inside the round screen's inner zone (the arc
+  // ring occupies radius 162..170, so content must stay within ~160 of the
+  // centre). Left column x=22..128 right-aligned, right column 232..338
+  // left-aligned, clock column between them — mirroring the HTML v6.1 grid.
+  const lv_coord_t rowY[] = { 130, 166, 202, 238 };
 
   for (int i = 0; i < 4; ++i) {
     idleColLeft_[i] = lv_label_create(scr);
-    lv_obj_set_pos(idleColLeft_[i], colLeftX, rowY[i]);
-    lv_obj_set_width(idleColLeft_[i], colWidth);
+    lv_obj_set_pos(idleColLeft_[i], 22, rowY[i]);
+    lv_obj_set_width(idleColLeft_[i], 106);
     lv_obj_set_style_text_font(idleColLeft_[i], &dsh_font_cjk_16, 0);
     lv_obj_set_style_text_color(idleColLeft_[i], kWhite, 0);
-    lv_label_set_recolor(idleColLeft_[i], true);
     lv_label_set_long_mode(idleColLeft_[i], LV_LABEL_LONG_DOT);
     lv_obj_set_style_text_align(idleColLeft_[i], LV_TEXT_ALIGN_RIGHT, 0);
     lv_label_set_text(idleColLeft_[i], "");
     lv_obj_add_flag(idleColLeft_[i], LV_OBJ_FLAG_HIDDEN);
 
     idleColRight_[i] = lv_label_create(scr);
-    lv_obj_set_pos(idleColRight_[i], colRightX, rowY[i]);
-    lv_obj_set_width(idleColRight_[i], colWidth);
+    lv_obj_set_pos(idleColRight_[i], 232, rowY[i]);
+    lv_obj_set_width(idleColRight_[i], 106);
     lv_obj_set_style_text_font(idleColRight_[i], &dsh_font_cjk_16, 0);
     lv_obj_set_style_text_color(idleColRight_[i], kWhite, 0);
-    lv_label_set_recolor(idleColRight_[i], true);
     lv_label_set_long_mode(idleColRight_[i], LV_LABEL_LONG_DOT);
     lv_obj_set_style_text_align(idleColRight_[i], LV_TEXT_ALIGN_LEFT, 0);
     lv_label_set_text(idleColRight_[i], "");
     lv_obj_add_flag(idleColRight_[i], LV_OBJ_FLAG_HIDDEN);
+  }
+
+  // ── idle stat name labels ─────────────────────────────────────────────
+  // Per-row names sit just above their value, in gray. Fixed at build time —
+  // setState only fills the value labels.
+  for (int i = 0; i < 4; ++i) {
+    const char* leftNames[] = { "轮次", "步数", "LLM", "工具" };
+    idleNameLeft_[i] = lv_label_create(scr);
+    lv_obj_set_pos(idleNameLeft_[i], 22, rowY[i] - 18);
+    lv_obj_set_width(idleNameLeft_[i], 106);
+    lv_obj_set_style_text_font(idleNameLeft_[i], &dsh_font_cjk_16, 0);
+    lv_obj_set_style_text_color(idleNameLeft_[i], kGray, 0);
+    lv_label_set_long_mode(idleNameLeft_[i], LV_LABEL_LONG_DOT);
+    lv_obj_set_style_text_align(idleNameLeft_[i], LV_TEXT_ALIGN_RIGHT, 0);
+    lv_label_set_text(idleNameLeft_[i], leftNames[i]);
+    lv_obj_add_flag(idleNameLeft_[i], LV_OBJ_FLAG_HIDDEN);
+
+    const char* rightNames[] = { "首token", "速度", "缓存", "输入" };
+    idleNameRight_[i] = lv_label_create(scr);
+    lv_obj_set_pos(idleNameRight_[i], 232, rowY[i] - 18);
+    lv_obj_set_width(idleNameRight_[i], 106);
+    lv_obj_set_style_text_font(idleNameRight_[i], &dsh_font_cjk_16, 0);
+    lv_obj_set_style_text_color(idleNameRight_[i], kGray, 0);
+    lv_label_set_long_mode(idleNameRight_[i], LV_LABEL_LONG_DOT);
+    lv_obj_set_style_text_align(idleNameRight_[i], LV_TEXT_ALIGN_LEFT, 0);
+    lv_label_set_text(idleNameRight_[i], rightNames[i]);
+    lv_obj_add_flag(idleNameRight_[i], LV_OBJ_FLAG_HIDDEN);
   }
 
   // ── working face: the tool-call activity list ───────────────────────────
@@ -255,30 +284,32 @@ void DialUi::buildMainScreen() {
   // CJK character list: it holds only ~1000 Han radicals plus basic ASCII, no
   // punctuation, no symbols, no mid-dots (·), no box-drawing (│).
   footerIcon_ = lv_label_create(scr);
-  lv_obj_align(footerIcon_, LV_ALIGN_BOTTOM_MID, -86, -14);
+  lv_obj_align(footerIcon_, LV_ALIGN_BOTTOM_MID, -70, -40);
   lv_obj_set_style_text_font(footerIcon_, &lv_font_montserrat_20, 0);
   lv_obj_set_style_text_color(footerIcon_, kGray, 0);
   lv_label_set_text(footerIcon_, "");
 
   footerText_ = lv_label_create(scr);
-  lv_obj_align(footerText_, LV_ALIGN_BOTTOM_MID, -60, -14);
+  lv_obj_align(footerText_, LV_ALIGN_BOTTOM_MID, -36, -40);
   lv_obj_set_style_text_font(footerText_, &dsh_font_cjk_16, 0);
   lv_obj_set_style_text_color(footerText_, kGray, 0);
   lv_label_set_text(footerText_, "");
 
   footerRight_ = lv_label_create(scr);
-  lv_obj_align(footerRight_, LV_ALIGN_BOTTOM_MID, 86, -14);
+  lv_obj_align(footerRight_, LV_ALIGN_BOTTOM_MID, 52, -40);
   lv_obj_set_style_text_font(footerRight_, &dsh_font_cjk_16, 0);
   lv_obj_set_style_text_color(footerRight_, kGray, 0);
   lv_label_set_text(footerRight_, "");
 
-  // Footer centre — context pressure as text, mirroring the HTML idle-foot
-  // ("上下文 41%"). Sits between the link state and the battery.
+  // Context pressure text under the clock — the arc already shows it as a ring,
+  // but the number belongs next to the idle readout, not competing for footer
+  // width. Shown only while idle; setState fills it.
   footerMid_ = lv_label_create(scr);
-  lv_obj_align(footerMid_, LV_ALIGN_BOTTOM_MID, 0, -14);
+  lv_obj_align(footerMid_, LV_ALIGN_CENTER, 0, 34);
   lv_obj_set_style_text_font(footerMid_, &dsh_font_cjk_16, 0);
   lv_obj_set_style_text_color(footerMid_, kGray, 0);
   lv_label_set_text(footerMid_, "");
+  lv_obj_add_flag(footerMid_, LV_OBJ_FLAG_HIDDEN);
 }
 
 // ── ask overlay ──────────────────────────────────────────────────────────
@@ -412,10 +443,12 @@ void DialUi::setState(const JsonDocument& doc) {
     }
     // Hide the old ticker so it does not compete with the three-column layout.
     if (statsLabel_ != nullptr) lv_obj_add_flag(statsLabel_, LV_OBJ_FLAG_HIDDEN);
-    // Show the three-column stat rows.
+    // Show the three-column stat rows (names + values).
     for (int i = 0; i < 4; ++i) {
       lv_obj_clear_flag(idleColLeft_[i], LV_OBJ_FLAG_HIDDEN);
       lv_obj_clear_flag(idleColRight_[i], LV_OBJ_FLAG_HIDDEN);
+      lv_obj_clear_flag(idleNameLeft_[i], LV_OBJ_FLAG_HIDDEN);
+      lv_obj_clear_flag(idleNameRight_[i], LV_OBJ_FLAG_HIDDEN);
     }
   } else {
     lv_obj_add_flag(clockLabel_, LV_OBJ_FLAG_HIDDEN);
@@ -423,6 +456,8 @@ void DialUi::setState(const JsonDocument& doc) {
     for (int i = 0; i < 4; ++i) {
       lv_obj_add_flag(idleColLeft_[i], LV_OBJ_FLAG_HIDDEN);
       lv_obj_add_flag(idleColRight_[i], LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(idleNameLeft_[i], LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(idleNameRight_[i], LV_OBJ_FLAG_HIDDEN);
     }
   }
 
@@ -437,31 +472,35 @@ void DialUi::setState(const JsonDocument& doc) {
   }
 
   // Populate the three-column stat rows from the structured `s` object.
+  // Only value labels change — names are fixed at build time.
   if (idleFace) {
     const char* leftKeys[] = { "turns", "steps", "llm", "tool" };
-    const char* leftNames[] = { "轮次", "步数", "LLM", "工具" };
     const char* rightKeys[] = { "ttft", "tps", "cache", "inp" };
-    const char* rightNames[] = { "首token", "速度", "缓存", "输入" };
     JsonObjectConst s = doc["s"].as<JsonObjectConst>();
     for (int i = 0; i < 4; ++i) {
-      // HTML order: name (k) dim gray on top, value (v) bright below.
       const char* v = s.isNull() ? "" : (s[leftKeys[i]] | "");
-      char buf[60];
-      if (strlen(v) > 0) {
-        snprintf(buf, sizeof(buf), "#5d6478 %s#\n%s", leftNames[i], v);
-      } else {
-        snprintf(buf, sizeof(buf), "#5d6478 %s#", leftNames[i]);
-      }
-      lv_label_set_text(idleColLeft_[i], buf);
-
+      lv_label_set_text(idleColLeft_[i], strlen(v) > 0 ? v : "-");
       const char* vr = s.isNull() ? "" : (s[rightKeys[i]] | "");
-      if (strlen(vr) > 0) {
-        snprintf(buf, sizeof(buf), "#5d6478 %s#\n%s", rightNames[i], vr);
-      } else {
-        snprintf(buf, sizeof(buf), "#5d6478 %s#", rightNames[i]);
-      }
-      lv_label_set_text(idleColRight_[i], buf);
+      lv_label_set_text(idleColRight_[i], strlen(vr) > 0 ? vr : "-");
     }
+  }
+
+  // Context pressure text under the clock, visible only while idle.
+  if (idleFace && footerMid_ != nullptr) {
+    const uint8_t ctx = doc["ctx"] | 0;
+    if (ctx > 0) {
+      char buf[24];
+      snprintf(buf, sizeof(buf), "上下文 %u%%", ctx);
+      lv_label_set_text(footerMid_, buf);
+      lv_obj_set_style_text_color(footerMid_,
+          ctx < 50 ? kGreen : ctx < 80 ? kYellow : kRed, 0);
+      lv_obj_clear_flag(footerMid_, LV_OBJ_FLAG_HIDDEN);
+    } else {
+      lv_label_set_text(footerMid_, "");
+      lv_obj_add_flag(footerMid_, LV_OBJ_FLAG_HIDDEN);
+    }
+  } else if (footerMid_ != nullptr) {
+    lv_obj_add_flag(footerMid_, LV_OBJ_FLAG_HIDDEN);
   }
 
   setActivity(doc);
@@ -559,28 +598,27 @@ void DialUi::setFooter(const JsonDocument& doc) {
     lv_label_set_text(footerRight_, "");
   }
 
-  // Context pressure between link and battery, mirroring the HTML idle-foot.
-  if (footerMid_ != nullptr) {
-    const uint8_t ctx = doc["ctx"] | 0;
-    if (ctx > 0) {
-      char buf[24];
-      snprintf(buf, sizeof(buf), "上下文 %u%%", ctx);
-      lv_label_set_text(footerMid_, buf);
-      // The same colour coding as the arc: green → yellow → red.
-      lv_obj_set_style_text_color(footerMid_,
-          ctx < 50 ? kGreen : ctx < 80 ? kYellow : kRed, 0);
-      lv_obj_clear_flag(footerMid_, LV_OBJ_FLAG_HIDDEN);
-    } else {
-      lv_label_set_text(footerMid_, "");
-      lv_obj_set_style_text_color(footerMid_, kGray, 0);
-      lv_obj_add_flag(footerMid_, LV_OBJ_FLAG_HIDDEN);
-    }
-  }
+  // footerMid_ is handled in setState as a clock-adjacent label.
 }
 
 void DialUi::updateArc(uint8_t ctxPercent) {
   if (arc_ == nullptr) return;
-  lv_arc_set_value(arc_, ctxPercent);
+  // Animate the arc value from its current position to the new target, so the
+  // ring looks alive rather than jumping. 300 ms ease-out makes the motion
+  // visible without feeling sluggish — a status dial should not compete with
+  // a busy indicator.
+  //
+  // The colour still sets instantly: interpolating hue would need an HSL exec
+  // callback, and the arc's green/yellow/red bands are already a fast read.
+  lv_anim_del(arc_, arcAnimCb_);
+  lv_anim_init(&arcAnim_);
+  lv_anim_set_var(&arcAnim_, arc_);
+  lv_anim_set_exec_cb(&arcAnim_, arcAnimCb_);
+  lv_anim_set_values(&arcAnim_, lv_arc_get_value(arc_), ctxPercent);
+  lv_anim_set_time(&arcAnim_, 300);
+  lv_anim_set_path_cb(&arcAnim_, lv_anim_path_ease_out);
+  lv_anim_start(&arcAnim_);
+
   // The indicator colour tracks the pressure level: green → yellow → red.
   lv_color_t arcColor;
   if (ctxPercent < 50) arcColor = kGreen;
@@ -854,6 +892,8 @@ void DialUi::setConnecting(const char* message) {
   for (int i = 0; i < 4; ++i) {
     if (idleColLeft_[i] != nullptr) lv_obj_add_flag(idleColLeft_[i], LV_OBJ_FLAG_HIDDEN);
     if (idleColRight_[i] != nullptr) lv_obj_add_flag(idleColRight_[i], LV_OBJ_FLAG_HIDDEN);
+    if (idleNameLeft_[i] != nullptr) lv_obj_add_flag(idleNameLeft_[i], LV_OBJ_FLAG_HIDDEN);
+    if (idleNameRight_[i] != nullptr) lv_obj_add_flag(idleNameRight_[i], LV_OBJ_FLAG_HIDDEN);
   }
   // The footer stays: link state and battery are exactly what matters now.
   if (footerMid_ != nullptr) lv_obj_add_flag(footerMid_, LV_OBJ_FLAG_HIDDEN);
