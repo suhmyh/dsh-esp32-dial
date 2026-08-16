@@ -274,6 +274,8 @@ function deriveState(snapshot, previous) {
 		perm: values.permissions?.currentValue ?? "",
 		sessions: items.length,
 		running: nowRunning,
+		acts: formatActivity(liveFacts.jobs),
+		stats: phase === "idle" ? formatStats(values) : "",
 		seq: active?.projections?.asOfSeq ?? 0,
 		// carried for the next derivation, not sent to the device
 		stoppedAt: nowRunning === 0 && wasRunning ? Date.now() : (previous?.stoppedAt ?? 0),
@@ -294,6 +296,84 @@ function firstLine(label, kind) {
 		.find((l) => l !== "" && !l.startsWith("$env:") && !l.startsWith("#"));
 	if (line === undefined || line === "") return String(kind ?? "");
 	return line.slice(0, 40);
+}
+
+/** Format a millisecond duration the way DSH's own status bar does. */
+function fmtDuration(ms) {
+	const totalSec = Math.floor(Number(ms ?? 0) / 1000);
+	const m = Math.floor(totalSec / 60);
+	const s = totalSec % 60;
+	return m > 0 ? `${m}m${s}s` : `${s}s`;
+}
+
+/** Format a token count compactly: 157000000 → "157M". */
+function fmtTokens(n) {
+	const v = Number(n ?? 0);
+	if (v >= 1e6) return `${Math.round(v / 1e6)}M`;
+	if (v >= 1e3) return `${Math.round(v / 1e3)}k`;
+	return String(v);
+}
+
+/**
+ * Pre-format the idle statistics line.
+ *
+ * The unit conversions (ms→minutes, tokens→millions, ratio→percent) happen here
+ * rather than in firmware because they belong with the data: the dial's job is
+ * to render a string, and a C++ reimplementation of this arithmetic would be a
+ * second place for the same rounding to drift.
+ *
+ * Returns "" when the counters are absent, which the dial reads as "show
+ * nothing" — an empty ticker is honest, a zeroed one is not.
+ */
+function formatStats(values) {
+	const st = values?.sessionStats;
+	const tu = values?.tokenUsage;
+	if (st === undefined && tu === undefined) return "";
+
+	const parts = [];
+	if (st?.turns !== undefined || st?.steps !== undefined) {
+		parts.push(`${st?.turns ?? 0} 轮 · ${st?.steps ?? 0} 步`);
+	}
+	if (st?.llmMs !== undefined || st?.toolMs !== undefined) {
+		parts.push(`LLM ${fmtDuration(st?.llmMs)} · 工具调用 ${fmtDuration(st?.toolMs)}`);
+	}
+	// Averages need their divisor checked: a fresh session has zero steps, and
+	// "NaN" on a status display is worse than omitting the figure.
+	const perf = [];
+	if (st?.ttftMs > 0 && st?.ttftSteps > 0) {
+		perf.push(`首 token 平均 ${(st.ttftMs / st.ttftSteps / 1000).toFixed(1)}s`);
+	}
+	if (st?.decodeMs > 0 && st?.decodeTokens > 0) {
+		perf.push(`${Math.round(st.decodeTokens / (st.decodeMs / 1000))} tok/s`);
+	}
+	if (perf.length > 0) parts.push(perf.join(" · "));
+
+	const cached = Number(tu?.cacheReadTokens ?? 0);
+	const uncached = Number(tu?.uncachedInputTokens ?? 0);
+	const totalIn = cached + uncached;
+	if (totalIn > 0) {
+		parts.push(`缓存命中 ${Math.round((cached / totalIn) * 100)}%`);
+		parts.push(`输入 ${fmtTokens(totalIn)} tok · 输出 ${fmtTokens(tu?.outputTokens)} tok`);
+	}
+	return parts.join(" │ ");
+}
+
+/**
+ * Build the working-phase activity list from the running jobs.
+ *
+ * The dial shows three lines at most, so the newest jobs win: what DSH started
+ * last is what a person watching wants to see. `r` marks the running one, which
+ * the firmware draws at full contrast.
+ */
+function formatActivity(jobs) {
+	if (!Array.isArray(jobs) || jobs.length === 0) return [];
+	return jobs
+		.slice(-3)
+		.map((j) => ({
+			t: firstLine(j.label, j.kind).slice(0, 40),
+			r: j.status === "running",
+		}))
+		.filter((a) => a.t !== "");
 }
 
 /** Strip bookkeeping fields before sending to the device. */
@@ -359,7 +439,11 @@ async function tick() {
 		next.ctx !== lastState.ctx ||
 		next.steps !== lastState.steps ||
 		next.running !== lastState.running ||
-		next.perm !== lastState.perm;
+		next.perm !== lastState.perm ||
+		// The activity list and the idle ticker are the two fields a person
+		// actually watches change, so they must gate the send like the rest.
+		next.stats !== lastState.stats ||
+		JSON.stringify(next.acts) !== JSON.stringify(lastState.acts);
 
 	lastState = next;
 	if (changed) {
@@ -531,7 +615,12 @@ function watchDshEvents() {
 				next.detail = runningJob !== undefined ? firstLine(runningJob.label, runningJob.kind)
 					: lastState.detail !== "" && lastState.phase === "working" ? "等待中"
 					: "";
-				if (next.detail !== lastState.detail) {
+				next.acts = formatActivity(jobs);
+				// Both fields come from this same jobs push, so either one
+				// changing is a reason to send: comparing only `detail` would
+				// silently drop activity-list updates.
+				if (next.detail !== lastState.detail ||
+					JSON.stringify(next.acts) !== JSON.stringify(lastState.acts)) {
 					lastState = next;
 					broadcast(toFrame(next));
 				}
