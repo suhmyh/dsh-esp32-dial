@@ -1,0 +1,38 @@
+serverAddr = "149.88.88.167"
+serverPort = 7000
+auth.token = "602a3046"
+
+# Console logging: a background job can then surface tunnel registration and
+# any startup failure, instead of it disappearing into a file.
+log.to = "console"
+log.level = "info"
+
+# The server's cloud firewall only admits up to 7002: connections to 7003/7004
+# time out (silently dropped, not refused), so tunnels on those ports register
+# fine on this side yet stay unreachable from the internet. Only 7001 and 7002
+# are actually usable.
+
+# DSH gateway (account + JWT) — the tunnel that already works.
+[[proxies]]
+name = "bridge"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 3081
+remotePort = 7001
+
+# DSH Dial 桥接 WebSocket — 圆盘跨公网连接用。
+#
+# Takes over 7002, previously pointed at the QwenPaw console whose local
+# service (127.0.0.1:50961) is no longer listening.
+#
+# 公网入口 ws://149.88.88.167:7002/dev
+# 圆盘配网填 Host = 149.88.88.167, Port = 7002
+#
+# The bridge checks its 32-hex device token in constant time, so exposing this
+# publicly is only as safe as that token staying secret.
+[[proxies]]
+name = "dsh-dial-bridge"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 3082
+remotePort = 7002

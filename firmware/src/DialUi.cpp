@@ -117,13 +117,13 @@ void DialUi::buildMainScreen() {
   lv_obj_set_pos(phaseLabel_, 180, 140);
   lv_obj_set_style_text_font(phaseLabel_, &lv_font_montserrat_48, 0);
   lv_obj_set_style_text_color(phaseLabel_, kWhite, 0);
-  lv_label_set_text(phaseLabel_, "初始");
+  lv_label_set_text(phaseLabel_, LV_SYMBOL_MINUS);
   lv_obj_center(phaseLabel_);
 
   // Title — session title, below the phase word.
   titleLabel_ = lv_label_create(scr);
   lv_obj_align(titleLabel_, LV_ALIGN_TOP_MID, 0, 48);
-  lv_obj_set_style_text_font(titleLabel_, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(titleLabel_, &lv_font_simsun_16_cjk, 0);
   lv_obj_set_style_text_color(titleLabel_, kWhite, 0);
   lv_label_set_long_mode(titleLabel_, LV_LABEL_LONG_SCROLL_CIRCULAR);
   lv_obj_set_width(titleLabel_, 280);
@@ -132,7 +132,7 @@ void DialUi::buildMainScreen() {
   // Detail — current action, bottom.
   detailLabel_ = lv_label_create(scr);
   lv_obj_align(detailLabel_, LV_ALIGN_BOTTOM_MID, 0, -24);
-  lv_obj_set_style_text_font(detailLabel_, &lv_font_montserrat_12, 0);
+  lv_obj_set_style_text_font(detailLabel_, &lv_font_simsun_16_cjk, 0);
   lv_obj_set_style_text_color(detailLabel_, kGray, 0);
   lv_label_set_long_mode(detailLabel_, LV_LABEL_LONG_SCROLL_CIRCULAR);
   lv_obj_set_width(detailLabel_, 300);
@@ -153,7 +153,7 @@ void DialUi::buildAskOverlay() {
 
   askTitle_ = lv_label_create(askBg_);
   lv_obj_align(askTitle_, LV_ALIGN_TOP_MID, 0, 32);
-  lv_obj_set_style_text_font(askTitle_, &lv_font_montserrat_20, 0);
+  lv_obj_set_style_text_font(askTitle_, &lv_font_simsun_16_cjk, 0);
   lv_obj_set_style_text_color(askTitle_, kDarkBg, 0);
   lv_label_set_long_mode(askTitle_, LV_LABEL_LONG_WRAP);
   lv_obj_set_width(askTitle_, 300);
@@ -161,7 +161,7 @@ void DialUi::buildAskOverlay() {
 
   askBody_ = lv_label_create(askBg_);
   lv_obj_align(askBody_, LV_ALIGN_TOP_MID, 0, 80);
-  lv_obj_set_style_text_font(askBody_, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(askBody_, &lv_font_simsun_16_cjk, 0);
   lv_obj_set_style_text_color(askBody_, LV_COLOR_MAKE(0x33, 0x33, 0x33), 0);
   lv_label_set_long_mode(askBody_, LV_LABEL_LONG_WRAP);
   lv_obj_set_width(askBody_, 280);
@@ -175,6 +175,7 @@ void DialUi::buildAskOverlay() {
   lv_obj_add_event_cb(askBtnAllow_, DialUi::askButtonClicked, LV_EVENT_CLICKED,
                       reinterpret_cast<void*>(static_cast<uintptr_t>(0)));
   lv_obj_t* lblAllow = lv_label_create(askBtnAllow_);
+  lv_obj_set_style_text_font(lblAllow, &lv_font_simsun_16_cjk, 0);
   lv_label_set_text(lblAllow, "允许");
   lv_obj_center(lblAllow);
 
@@ -186,6 +187,7 @@ void DialUi::buildAskOverlay() {
   lv_obj_add_event_cb(askBtnDeny_, DialUi::askButtonClicked, LV_EVENT_CLICKED,
                       reinterpret_cast<void*>(static_cast<uintptr_t>(1)));
   lv_obj_t* lblDeny = lv_label_create(askBtnDeny_);
+  lv_obj_set_style_text_font(lblDeny, &lv_font_simsun_16_cjk, 0);
   lv_label_set_text(lblDeny, "拒绝");
   lv_obj_center(lblDeny);
 }
@@ -244,15 +246,19 @@ void DialUi::updateArc(uint8_t ctxPercent) {
 
 void DialUi::setPhaseLabel(DialPhase phase) {
   if (phaseLabel_ == nullptr) return;
+  // LVGL's built-in symbols are part of every Montserrat build, so they always
+  // render. Arbitrary Unicode glyphs (✓ ✕ ⌀ ⋯) are not in the font and would
+  // come out as empty boxes — the whole point of the dial is being readable at
+  // a glance, so the icon must never be a placeholder.
   const char* text;
   switch (phase) {
-    case DialPhase::Idle:    text = "·"; break;
-    case DialPhase::Working: text = "⋯"; break;
-    case DialPhase::Waiting: text = "?!"; break;
-    case DialPhase::Done:    text = "✓"; break;
-    case DialPhase::Error:   text = "✕"; break;
-    case DialPhase::Offline: text = "⌀"; break;
-    default:                 text = "?"; break;
+    case DialPhase::Idle:    text = LV_SYMBOL_MINUS;    break;  // resting
+    case DialPhase::Working: text = LV_SYMBOL_REFRESH;  break;  // busy
+    case DialPhase::Waiting: text = LV_SYMBOL_WARNING;  break;  // needs you
+    case DialPhase::Done:    text = LV_SYMBOL_OK;       break;
+    case DialPhase::Error:   text = LV_SYMBOL_CLOSE;    break;
+    case DialPhase::Offline: text = LV_SYMBOL_EYE_CLOSE; break;  // link down
+    default:                 text = LV_SYMBOL_MINUS;    break;
   }
   lv_label_set_text(phaseLabel_, text);
 }
@@ -389,7 +395,7 @@ void DialUi::buildProvisioningScreen() {
   // Reason for setup mode, at the top of the circle.
   provTitle_ = lv_label_create(provBg_);
   lv_obj_align(provTitle_, LV_ALIGN_TOP_MID, 0, 40);
-  lv_obj_set_style_text_font(provTitle_, &lv_font_montserrat_16, 0);
+  lv_obj_set_style_text_font(provTitle_, &lv_font_simsun_16_cjk, 0);
   lv_obj_set_style_text_color(provTitle_, kWhite, 0);
   lv_obj_set_style_text_align(provTitle_, LV_TEXT_ALIGN_CENTER, 0);
   lv_label_set_long_mode(provTitle_, LV_LABEL_LONG_WRAP);
@@ -421,7 +427,12 @@ void DialUi::showProvisioning(const char* apSsid, const char* apPassword,
   if (provBg_ == nullptr) return;
   provisioning_ = true;
 
-  lv_label_set_text(provTitle_, reason != nullptr ? reason : "设备配置");
+  // The reason line doubles as the instruction: a user looking at this screen
+  // for the first time needs to know what to do, not just what happened.
+  char header[96];
+  snprintf(header, sizeof(header), "%s\n手机扫码连接",
+           reason != nullptr ? reason : "设备配置");
+  lv_label_set_text(provTitle_, header);
 
   // A WIFI: URI makes the phone offer to join the network directly. WPA is
   // hard-coded because deriveCredentials always sets a password.
@@ -430,8 +441,10 @@ void DialUi::showProvisioning(const char* apSsid, const char* apPassword,
            apSsid != nullptr ? apSsid : "", apPassword != nullptr ? apPassword : "");
   lv_qrcode_update(provQr_, wifiUri, strlen(wifiUri));
 
+  // Printed credentials for the case where the camera cannot be used: the SSID
+  // and password are ASCII, so Montserrat renders them fine.
   char creds[96];
-  snprintf(creds, sizeof(creds), "%s\n%s", apSsid != nullptr ? apSsid : "",
+  snprintf(creds, sizeof(creds), "%s / %s", apSsid != nullptr ? apSsid : "",
            apPassword != nullptr ? apPassword : "");
   lv_label_set_text(provCreds_, creds);
 

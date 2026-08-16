@@ -20,86 +20,130 @@ namespace {
 DNSServer dnsServer;
 WebServer httpServer(80);
 
-constexpr const char* kHtmlForm = R"html(
+static const char* kHtmlForm = R"html(
 <!DOCTYPE html>
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DSH Dial 配置</title>
+<title>连接圆盘</title>
 <style>
-  body{font-family:-apple-system,sans-serif;background:#0D111D;color:#fff;margin:0;padding:20px;max-width:500px}
-  h1{margin:0 0 4px;color:#1E88E5;font-size:20px}
-  p{margin:0 0 20px;color:#888;font-size:13px}
-  label{display:block;margin:12px 0 4px;font-size:13px;font-weight:600}
-  select,input[type=text],input[type=password]{width:100%;padding:10px;border:1px solid #333;border-radius:6px;background:#1a1a2e;color:#fff;font-size:14px;box-sizing:border-box}
-  select option{background:#1a1a2e}
-  .hint{font-size:11px;color:#666;margin:4px 0 0}
-  button{width:100%;margin-top:24px;padding:12px;border:none;border-radius:6px;background:#1E88E5;color:#fff;font-size:16px;font-weight:600;cursor:pointer}
+  *{box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:#0D111D;color:#e8eaf0;margin:0;padding:20px;max-width:520px;line-height:1.5}
+  h1{font-size:22px;margin:0 0 6px}
+  .sub{color:#8891a5;font-size:13px;margin:0 0 20px}
+  .step{background:#151a28;border:1px solid #252c3d;border-radius:10px;padding:14px 16px;margin-bottom:12px}
+  .step h2{font-size:14px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+  .n{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:#1E88E5;color:#fff;font-size:11px;font-weight:700;flex:none}
+  label{display:block;margin:10px 0 4px;font-size:13px;font-weight:600}
+  input[type=text],input[type=password]{width:100%;padding:11px;border:1px solid #333;border-radius:8px;background:#0a0e16;color:#fff;font-size:15px}
+  input:focus{outline:2px solid #1E88E5;border-color:#1E88E5}
+  .hint{font-size:12px;color:#8891a5;margin:5px 0 0}
+  .hint code{background:#0a0e16;border:1px solid #252c3d;border-radius:4px;padding:1px 5px;font-size:11px}
+  button{width:100%;margin-top:14px;padding:14px;border:none;border-radius:10px;background:#1E88E5;color:#fff;font-size:16px;font-weight:700;cursor:pointer}
   button:active{background:#1565C0}
-  .msg{margin-top:16px;padding:10px;border-radius:6px;display:none}
-  .msg.ok{background:#1b5e20;display:block}
-  .msg.err{background:#b71c1c;display:block}
+  button:disabled{opacity:.5}
   .row{display:flex;gap:8px}
   .row input{flex:1}
-  .row input:first-child{flex:3}
-  .btn-sm{padding:10px;border:1px solid #333;border-radius:6px;background:#1a1a2e;color:#fff;cursor:pointer;font-size:13px;white-space:nowrap}
-  @media(prefers-color-scheme:light){body{background:#f5f5f5;color:#111}select,input[type=text],input[type=password]{background:#fff;color:#111;border-color:#ccc}select option{background:#fff}}
+  .btn-sm{width:auto;margin:0;padding:0 14px;background:#1a1a2e;border:1px solid #333;border-radius:8px;font-size:13px;font-weight:400;white-space:nowrap}
+  #networks{display:none;margin-top:6px}
+  select{width:100%;padding:10px;border:1px solid #333;border-radius:8px;background:#0a0e16;color:#fff;font-size:14px}
+  select option{background:#0a0e16}
+  .msg{margin-top:14px;padding:12px;border-radius:8px;display:none;font-size:14px}
+  .msg.ok{background:#0f2416;color:#a8e6b8;display:block}
+  .msg.err{background:#2a1010;color:#ffb4a8;display:block}
+  .faq{font-size:12px;color:#8891a5}
+  .faq p{margin:6px 0}
+  .faq b{color:#e8eaf0}
 </style>
 </head>
 <body>
-<h1>DSH 圆盘配置</h1>
-<p id="reason"></p>
-<form id="form" onsubmit="return save(event)">
-<label for="ssid">WiFi 网络</label>
-<div class="row">
-  <input type="text" id="ssid" placeholder="SSID" required>
-  <button type="button" class="btn-sm" onclick="scan()">扫描</button>
+<h1>连接你的圆盘</h1>
+<p class="sub">让圆盘连上家里的 WiFi，再连到电脑上的 DSH 桥接。三分钟搞定。</p>
+
+<div class="step">
+  <h2><span class="n">1</span>让圆盘上网</h2>
+  <label for="ssid">你家 WiFi 名称</label>
+  <div class="row">
+    <input type="text" id="ssid" placeholder="例如：ChinaNet-5G" required>
+    <button type="button" class="btn-sm" onclick="scan()">查看附近</button>
+  </div>
+  <div id="networks">
+    <select id="netlist" size="6" onchange="document.getElementById('ssid').value=this.value"></select>
+  </div>
+  <div class="hint">点“查看附近”自动列出，直接选即可。圆盘只支持 2.4G 网络。</div>
+
+  <label for="pass">WiFi 密码</label>
+  <input type="password" id="pass" placeholder="你家 WiFi 的密码">
+  <div class="hint">开放网络可以不填。</div>
 </div>
-<div class="hint">键入网络名，或点击"扫描"选择附近网络</div>
-<div id="networks" style="display:none">
-  <select id="netlist" size="6" onchange="document.getElementById('ssid').value=this.value"></select>
+
+<div class="step">
+  <h2><span class="n">2</span>连接电脑上的桥接</h2>
+  <p class="hint">先在电脑上运行桥接程序（<code>node bridge.js</code>），它启动时会打印一行 <code>device token:</code>。</p>
+
+  <label for="host">电脑的地址</label>
+  <input type="text" id="host" placeholder="例如：192.168.1.20" required>
+  <div class="hint">电脑在局域网的 IP 地址，<code>ipconfig</code> 里看 IPv4 那行。</div>
+
+  <label for="port">端口</label>
+  <input type="text" id="port" value="3082" inputmode="numeric">
+  <div class="hint">默认填 3082 就行。</div>
+
+  <label for="token">设备令牌（Token）</label>
+  <input type="password" id="token" placeholder="桥接窗口里的 32 位口令" required>
+  <div class="hint">从桥接窗口复制。</div>
 </div>
-<label for="pass">WiFi 密码</label>
-<input type="password" id="pass" placeholder="(留空=开放网络)">
-<label for="host">桥接地址</label>
-<input type="text" id="host" placeholder="192.168.1.20" required>
-<label for="port">端口</label>
-<input type="text" id="port" value="3082" inputmode="numeric">
-<label for="token">设备令牌</label>
-<input type="password" id="token" placeholder="从桥接日志复制" required>
-<div class="hint">在电脑上运行 bridge.js，首次启动会打印 token</div>
-<button type="submit">保存并重启</button>
-</form>
-<div id="result" class="msg"></div>
+
+<div class="step faq">
+  <h2><span class="n">3</span>保存</h2>
+  <p>填完点下面按钮，圆盘会保存配置并自动重启，然后连 WiFi、连桥接，一两分钟后屏幕显示状态。</p>
+  <button type="button" onclick="save()">保存并连接</button>
+  <div id="result" class="msg"></div>
+</div>
+
 <script>
 let scanning=false;
+function $(id){return document.getElementById(id);}
 async function scan(){
   if(scanning)return;
   scanning=true;
   const btn=document.querySelector('.btn-sm');
   btn.textContent='扫描中…';
-  document.getElementById('networks').style.display='none';
+  $('networks').style.display='none';
   try{
     const r=await fetch('/scan');
     const list=await r.json();
-    const sel=document.getElementById('netlist');
-    sel.innerHTML=list.map(s=>'<option>'+escape(s)+'</option>').join('');
-    if(list.length)document.getElementById('networks').style.display='block';
+    const sel=$('netlist');
+    sel.innerHTML=list.map(s=>'<option>'+s.replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]))+'</option>').join('');
+    if(list.length)$('networks').style.display='block';
   }catch(e){}
-  btn.textContent='扫描';
+  btn.textContent='查看附近';
   scanning=false;
 }
-function escape(s){return s.replace(/[<>&"']/g,function(c){return{'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c];})}
-async function save(ev){
-  ev.preventDefault();
-  const b=new URLSearchParams({ssid:document.getElementById('ssid').value,pass:document.getElementById('pass').value,host:document.getElementById('host').value,port:document.getElementById('port').value,token:document.getElementById('token').value});
-  const r=await fetch('/save',{method:'POST',body:b});
-  const j=await r.json();
-  const el=document.getElementById('result');
-  el.className='msg '+(j.ok?'ok':'err');
-  el.textContent=j.ok?'配置已保存，设备正在重启…':'保存失败: '+j.error;
-  if(j.ok)setTimeout(()=>{},1500);
+async function save(){
+  const b=new URLSearchParams({ssid:$('ssid').value,pass:$('pass').value,host:$('host').value,port:$('port').value,token:$('token').value});
+  if(!b.get('ssid')||!b.get('host')||!b.get('token')){
+    const el=$('result');
+    el.className='msg err';
+    el.textContent='WiFi 名称、电脑地址、设备令牌三项必填';
+    return;
+  }
+  const btn=document.querySelector('button[type=button]:last-of-type');
+  btn.disabled=true;
+  btn.textContent='正在保存…';
+  try{
+    const r=await fetch('/save',{method:'POST',body:b});
+    const j=await r.json();
+    const el=$('result');
+    el.className='msg '+(j.ok?'ok':'err');
+    el.textContent=j.ok?'已保存！圆盘正在重启并连接…':'保存失败: '+j.error;
+  }catch(e){
+    const el=$('result');
+    el.className='msg err';
+    el.textContent='网络错误: '+e.message;
+    btn.disabled=false;btn.textContent='保存并连接';
+  }
 }
 </script>
 </body>
