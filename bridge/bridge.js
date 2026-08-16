@@ -352,7 +352,14 @@ function deriveState(snapshot, previous) {
 
 	return {
 		phase,
-		title: String(values.title ?? "").slice(0, 48),
+		// The dial always names the product, never the session.
+		//
+		// Session titles are LLM-generated summaries of whatever was asked ("询问
+		// AI 助手身份"), which is noise on a status dial: the person looking at it
+		// already knows what they asked. It also made the title the one field that
+		// could contain arbitrary Chinese, so any character outside the generated
+		// font became a box. A constant ASCII string cannot.
+		title: "DeepSeek Harness",
 		detail,
 		ctx: ctxPercent,
 		turns: values.sessionStats?.turns ?? 0,
