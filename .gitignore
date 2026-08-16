@@ -1,0 +1,9 @@
+# Build artifacts
+firmware/.pio/
+bridge/node_modules/
+# OS noise
+.DS_Store
+Thumbs.db
+# Temp probes
+probe-*.js
+verify-*.js

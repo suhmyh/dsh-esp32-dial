@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DSH 圆盘 — 网页烧录</title>
+<style>
+  :root{--bg:#0D111D;--fg:#e8eaf0;--dim:#8891a5;--blue:#1E88E5;--green:#4CAF50;--red:#E53935;--yellow:#FFCC00;--card:#151a28;--line:#252c3d}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;background:var(--bg);color:var(--fg);line-height:1.6}
+  .wrap{max-width:760px;margin:0 auto;padding:32px 20px 80px}
+  h1{font-size:26px;margin:0 0 4px}
+  h1 span{color:var(--blue)}
+  .sub{color:var(--dim);font-size:14px;margin:0 0 28px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:16px}
+  .card h2{font-size:15px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+  .n{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--blue);color:#fff;font-size:12px;font-weight:700;flex:none}
+  button{font:inherit;font-weight:600;border:none;border-radius:8px;padding:12px 20px;cursor:pointer;background:var(--blue);color:#fff;transition:filter .15s}
+  button:hover:not(:disabled){filter:brightness(1.15)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--fg)}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  code,kbd{background:#0a0e16;border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  #log{background:#080b12;border:1px solid var(--line);border-radius:8px;padding:12px;height:260px;overflow-y:auto;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;color:#9fb3c8}
+  #log .e{color:var(--red)}
+  #log .s{color:var(--green)}
+  #log .w{color:var(--yellow)}
+  .bar{height:6px;background:#0a0e16;border-radius:3px;overflow:hidden;margin:12px 0 0}
+  .bar div{height:100%;width:0;background:var(--blue);transition:width .2s}
+  .warn{background:#2a1f0a;border:1px solid #5c4a1a;color:#ffd97a;border-radius:8px;padding:12px;font-size:13px;margin-bottom:16px}
+  .warn b{color:var(--yellow)}
+  .ok{background:#0f2416;border-color:#2a5c35;color:#a8e6b8}
+  ul{padding-left:22px;margin:8px 0}
+  li{margin:4px 0}
+  a{color:var(--blue)}
+  .meta{color:var(--dim);font-size:12px;margin-top:10px}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+  th{color:var(--dim);font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>DSH 圆盘 · <span>网页烧录</span></h1>
+<p class="sub">Waveshare ESP32-S3-Touch-LCD-1.85B — 不用装工具链，浏览器直接烧</p>
+
+<div id="compat" class="warn">正在检测浏览器…</div>
+
+<div class="card">
+  <h2><span class="n">1</span>接线</h2>
+  <ul>
+    <li>USB-C 线连接板子和电脑（用板子上标 <code>USB</code> 的口，不是 <code>UART</code>）</li>
+    <li>如果烧录失败：按住 <kbd>BOOT</kbd> 键，点一下 <kbd>RESET</kbd>，松开 <kbd>BOOT</kbd>，再重试</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h2><span class="n">2</span>选择固件</h2>
+  <div class="row">
+    <button id="btnFetch">下载云端最新固件</button>
+    <button id="btnPick" class="ghost">或选择本地 .bin</button>
+    <input type="file" id="file" accept=".bin" hidden>
+  </div>
+  <div id="fwInfo" class="meta">尚未选择固件</div>
+</div>
+
+<div class="card">
+  <h2><span class="n">3</span>烧录</h2>
+  <div class="row">
+    <button id="btnFlash" disabled>连接并烧录</button>
+    <button id="btnErase" class="ghost" disabled>先全片擦除（可选）</button>
+  </div>
+  <div class="bar"><div id="prog"></div></div>
+  <div id="stat" class="meta">等待固件</div>
+</div>
+
+<div class="card">
+  <h2>日志</h2>
+  <div id="log"></div>
+</div>
+
+<div class="card">
+  <h2>烧完之后</h2>
+  <p style="margin:0;font-size:14px">板子会重启并进入<b>配网模式</b>：屏幕显示一个二维码和 AP 密码。</p>
+  <table>
+    <tr><th>步骤</th><th>做什么</th></tr>
+    <tr><td>1</td><td>手机相机扫屏幕上的二维码 → 加入 <code>DSH-Dial-XXXX</code></td></tr>
+    <tr><td>2</td><td>浏览器打开 <code>http://192.168.4.1</code></td></tr>
+    <tr><td>3</td><td>填家里 WiFi + 电脑局域网 IP + 桥接 token</td></tr>
+    <tr><td>4</td><td>保存重启 → 开始显示 DSH 状态</td></tr>
+  </table>
+  <p class="meta">token 来自电脑上 <code>node bridge.js</code> 首次启动的输出。以后换网络：长按圆屏重新配网，或插 USB 用串口 <code>help</code>。</p>
+</div>
+
+</div>
+
+<script type="module">
+// esptool-js drives the ESP32 ROM bootloader over WebSerial, so the whole
+// flashing path lives in this page: no local Python, no toolchain, no drivers
+// beyond the USB-serial one the OS already ships.
+//
+// The API used below is pinned to 0.6.1 and matches its published typings:
+//   new Transport(port, tracing?, enableSlipReader?)
+//   new ESPLoader({ transport, baudrate, terminal, ... })   // LoaderOptions
+//   loader.main(): Promise<string>                          // detect + stub
+//   loader.writeFlash({ fileArray: [{data: Uint8Array, address}], flashMode,
+//                       flashFreq, flashSize, eraseAll, compress,
+//                       reportProgress(fileIndex, written, total) })
+//   loader.eraseFlash()
+//   loader.after("hard_reset")   // there is no loader.hardReset()
+import { ESPLoader, Transport } from 'https://unpkg.com/esptool-js@0.6.1/bundle.js';
+
+const el = id => document.getElementById(id);
+const logBox = el('log');
+
+function log(msg, cls='') {
+  const line = document.createElement('div');
+  if (cls) line.className = cls;
+  line.textContent = msg;
+  logBox.appendChild(line);
+  logBox.scrollTop = logBox.scrollHeight;
+}
+
+// ── browser support ──────────────────────────────────────────────────────
+// WebSerial is Chromium-only. Saying so up front is kinder than letting the
+// connect button fail later with a bare DOMException.
+const supported = 'serial' in navigator;
+const compat = el('compat');
+if (supported) {
+  compat.className = 'warn ok';
+  compat.innerHTML = '<b>✓</b> 浏览器支持 WebSerial，可以直接烧录';
+} else {
+  compat.innerHTML = '<b>⚠ 此浏览器不支持 WebSerial。</b>请用 Chrome / Edge / Opera（桌面版）打开本页。Safari 和 Firefox 目前无法烧录。';
+}
+
+// ── firmware selection ───────────────────────────────────────────────────
+let firmware = null;      // Uint8Array, exactly what FlashOptions wants
+let firmwareName = '';
+
+function setFirmware(name, arrayBuffer) {
+  firmware = new Uint8Array(arrayBuffer);
+  firmwareName = name;
+  el('fwInfo').textContent = `${name} — ${(firmware.length / 1024).toFixed(0)} KB`;
+  el('btnFlash').disabled = !supported;
+  el('btnErase').disabled = !supported;
+  el('stat').textContent = '准备就绪';
+  log(`固件已载入: ${name} (${firmware.length} 字节)`, 's');
+}
+
+el('btnFetch').addEventListener('click', async () => {
+  const btn = el('btnFetch');
+  btn.disabled = true;
+  btn.textContent = '下载中…';
+  try {
+    // The workflow copies the merged image next to this page on every build.
+    const res = await fetch('dsh-dial-merged.bin', { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status} — 云端还没有构建产物`);
+    setFirmware('dsh-dial-merged.bin (云端)', await res.arrayBuffer());
+    try {
+      const info = await (await fetch('build-info.json', { cache: 'no-store' })).json();
+      log(`云端构建: ${info.ref} @ ${info.commit.slice(0, 7)} — ${info.builtAt}`);
+    } catch { /* build-info is informational only */ }
+  } catch (err) {
+    log(`下载失败: ${err.message}`, 'e');
+    log('可以改用"选择本地 .bin"，或去 Actions 页面下载 artifact。', 'w');
+  }
+  btn.disabled = false;
+  btn.textContent = '下载云端最新固件';
+});
+
+el('btnPick').addEventListener('click', () => el('file').click());
+el('file').addEventListener('change', async ev => {
+  const f = ev.target.files?.[0];
+  if (f) setFirmware(f.name, await f.arrayBuffer());
+});
+
+// ── flashing ─────────────────────────────────────────────────────────────
+
+/** Open the port, run `fn` with a connected loader, then always release it. */
+async function withLoader(fn) {
+  let port;
+  try {
+    port = await navigator.serial.requestPort({});
+  } catch {
+    log('未选择串口设备', 'w');
+    return;
+  }
+
+  el('btnFlash').disabled = true;
+  el('btnErase').disabled = true;
+
+  let transport = null;
+  try {
+    transport = new Transport(port, false);
+    const loader = new ESPLoader({
+      transport,
+      baudrate: 921600,
+      terminal: {
+        clean: () => { /* keep our own log history */ },
+        writeLine: d => log(String(d)),
+        write: d => {
+          // esptool-js streams progress dots through write(); collapse them
+          // instead of emitting one log line per character.
+          const s = String(d).replace(/\r?\n$/, '');
+          if (s.trim() !== '') log(s);
+        },
+      },
+    });
+
+    // main() detects the chip, uploads the stub loader, and raises the baud.
+    const chip = await loader.main();
+    log(`已连接: ${chip}`, 's');
+    await fn(loader);
+  } catch (err) {
+    log(`失败: ${err.message}`, 'e');
+    if (/timed out|Failed to connect|No serial data/i.test(err.message)) {
+      log('提示: 按住 BOOT，点一下 RESET，松开 BOOT，然后重试。', 'w');
+    }
+  } finally {
+    // Releasing the port matters: a held port blocks the next attempt and the
+    // serial monitor, and the failure that causes looks like broken hardware.
+    try { await transport?.disconnect(); } catch { /* already gone */ }
+    el('btnFlash').disabled = !firmware;
+    el('btnErase').disabled = !firmware;
+  }
+}
+
+el('btnFlash').addEventListener('click', () => withLoader(async loader => {
+  el('stat').textContent = '烧录中…';
+  el('prog').style.width = '0%';
+
+  // The merged image already carries the bootloader, partition table and app,
+  // and its header holds the right mode/freq/size — so keep all three rather
+  // than overriding them from the page.
+  await loader.writeFlash({
+    fileArray: [{ data: firmware, address: 0x0 }],
+    flashMode: 'keep',
+    flashFreq: 'keep',
+    flashSize: 'keep',
+    eraseAll: false,
+    compress: true,
+    reportProgress: (_fileIndex, written, total) => {
+      const pct = Math.round((written / total) * 100);
+      el('prog').style.width = pct + '%';
+      el('stat').textContent = `烧录中… ${pct}%`;
+    },
+  });
+
+  log('烧录完成，正在硬复位…', 's');
+  await loader.after('hard_reset');
+  el('prog').style.width = '100%';
+  el('stat').textContent = '完成 — 看屏幕上的二维码';
+  log('板子已重启。屏幕应显示配网二维码。', 's');
+}));
+
+el('btnErase').addEventListener('click', () => withLoader(async loader => {
+  el('stat').textContent = '全片擦除中（约 30 秒）…';
+  log('开始全片擦除 — 会清掉已保存的 WiFi 配置', 'w');
+  await loader.eraseFlash();
+  log('擦除完成，现在可以烧录', 's');
+  el('stat').textContent = '已擦除 — 点"连接并烧录"';
+}));
+
+log('就绪。先选固件，再点烧录。');
+</script>
+</body>
+</html>

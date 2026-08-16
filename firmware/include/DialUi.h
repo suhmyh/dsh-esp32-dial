@@ -1,0 +1,190 @@
+// Copyright (c) 2026 DSH ESP32 dial project.
+// SPDX-License-Identifier: MIT
+//
+// LVGL round-dial UI for the DSH status dial.
+//
+// Three screens share the 360×360 circular display:
+//
+//  * the dial — an outer arc for context pressure, a centred phase glyph, and
+//    title/detail lines. A glance must tell the phases apart without reading.
+//  * the ask overlay — a yellow card with the question and its buttons, shown
+//    when DSH is blocked on a decision. This is the device's reason to exist.
+//  * the provisioning screen — AP credentials and a QR code, shown when the
+//    dial has no usable WiFi/bridge configuration and has opened its portal.
+
+#pragma once
+
+#include <Arduino.h>
+#include <ArduinoJson.h>
+#include <lvgl.h>
+
+/** The five dial states, matching the bridge's `phase` field. */
+enum class DialPhase : uint8_t {
+  Idle,
+  Working,
+  Waiting,
+  Done,
+  Error,
+  Offline   // bridge disconnected — not a bridge phase, injected by firmware
+};
+
+/** One ask button description. */
+struct AskOption {
+  char id[16];
+  char label[12];
+  /** Indicates which button is the primary (green) vs danger (red). */
+  bool primary;
+};
+
+/** An ask that the device must present. */
+struct Ask {
+  char id[16];
+  char title[48];
+  char body[160];
+  AskOption options[3];
+  uint8_t optionCount;  // 1-3
+  unsigned long expiresAt;  // ms timestamp
+};
+
+class DialUi {
+ public:
+  DialUi();
+
+  /** Call once in setup() after LVGL is initialised. */
+  void begin();
+
+  /** Call in the main loop; dispatches LVGL timer tasks. */
+  void loop();
+
+  // ── state frame ──────────────────────────────────────────────────────
+  /** Update the dial from a bridge `state` frame. */
+  void setState(const JsonDocument& doc);
+
+  // ── ask frame ────────────────────────────────────────────────────────
+  /** Show an ask overlay. */
+  void showAsk(const JsonDocument& doc);
+
+  /** Dismiss the ask overlay (user answered, or it expired). */
+  void dismissAsk();
+
+  /** True while the ask overlay is shown. */
+  bool isWaiting() const { return waiting_; }
+
+  /** True while the `done` phase is showing (transient). */
+  bool isDoneShowing() const { return doneShowMs_ > 0; }
+
+  /** True while the `offline` state is showing. */
+  bool isOffline() const { return phase_ == DialPhase::Offline; }
+
+  /** The current phase for the idle-dimming decision. */
+  DialPhase phase() const { return phase_; }
+
+  /** True when the last state frame is older than the freshness threshold. */
+  void setStale(bool stale) { stale_ = stale; }
+
+  /** The id of the ask currently shown — this is what an answer must carry. */
+  const char* askId() const { return activeAsk_.id; }
+
+  /** Return the text of the last ask for debugging. */
+  const char* askTitle() const { return activeAsk_.title; }
+
+  /** Show a bridge-connection status line while offline (no state frames yet). */
+  void setConnecting(const char* message);
+
+  /**
+   * Show the provisioning screen: AP name, password, portal URL, and a QR code
+   * that joins the AP directly.
+   *
+   * A phone camera pointed at a WIFI: QR joins the network without typing, and
+   * the printed credentials cover the case where the camera cannot.
+   */
+  void showProvisioning(const char* apSsid, const char* apPassword,
+                        const char* portalUrl, const char* reason);
+
+  /** Leave the provisioning screen and return to the dial. */
+  void hideProvisioning();
+
+  /** True while the provisioning screen is shown. */
+  bool isProvisioning() const { return provisioning_; }
+
+  /** True when the user long-pressed the dial background to re-open setup. */
+  bool hasReprovisionRequest() const { return reprovisionRequested_; }
+
+  /** Acknowledge and clear the request. */
+  void clearReprovisionRequest() { reprovisionRequested_ = false; }
+
+  /**
+   * True when a button callback has produced an answer awaiting delivery.
+   *
+   * Touch itself is handled by LVGL: the port's read callback owns the CST816
+   * and clears its state, so the dial registers ordinary LVGL button events
+   * rather than polling coordinates. The callback records the chosen option id
+   * here, and the main loop ships it.
+   */
+  bool hasAnswer() const { return pendingAnswer_ != nullptr; }
+
+  /** Take ownership of the pending answer string (caller frees it). */
+  char* takeAnswer() { char* r = pendingAnswer_; pendingAnswer_ = nullptr; return r; }
+
+  /** Record an answer; called by the LVGL button event handler. */
+  void recordAnswer(const char* optionId);
+
+  // ── brightness ───────────────────────────────────────────────────────
+  void setBacklight(uint8_t level);
+
+ private:
+  // LVGL objects
+  lv_obj_t* arc_ = nullptr;          // context pressure ring
+  lv_obj_t* phaseLabel_ = nullptr;   // one-word phase (large, centre)
+  lv_obj_t* titleLabel_ = nullptr;   // session title
+  lv_obj_t* detailLabel_ = nullptr;  // current action
+  lv_obj_t* statusBg_ = nullptr;     // phase-colour background circle
+
+  // Ask overlay
+  lv_obj_t* askBg_ = nullptr;        // yellow overlay
+  lv_obj_t* askTitle_ = nullptr;     // ask question
+  lv_obj_t* askBody_ = nullptr;      // ask detail
+  lv_obj_t* askBtnAllow_ = nullptr;
+  lv_obj_t* askBtnDeny_ = nullptr;
+  uint8_t askBtnCount_ = 2;
+
+  // Provisioning screen
+  lv_obj_t* provBg_ = nullptr;
+  lv_obj_t* provTitle_ = nullptr;
+  lv_obj_t* provQr_ = nullptr;
+  lv_obj_t* provCreds_ = nullptr;
+  lv_obj_t* provUrl_ = nullptr;
+  bool provisioning_ = false;
+  bool reprovisionRequested_ = false;
+
+  // State
+  DialPhase phase_ = DialPhase::Offline;
+  unsigned long doneShowMs_ = 0;     // remaining ms of the done flash
+  bool stale_ = false;
+  bool waiting_ = false;
+  Ask activeAsk_;
+  char* pendingAnswer_ = nullptr;
+
+  // Phase→background colour lookup
+  static lv_color_t colorForPhase(DialPhase phase, bool stale);
+
+  // Layout helpers
+  void buildMainScreen();
+  void buildAskOverlay();
+  void buildProvisioningScreen();
+  void updatePhaseDisplay();
+  void updateArc(uint8_t ctxPercent);
+  void setPhaseLabel(DialPhase phase);
+  void onAskButton(uint8_t index);
+  void onBackgroundLongPress();
+
+  // LVGL style
+  static lv_style_t mainStyle_;
+  static bool stylesInitialised_;
+
+  // Backlight PWM
+  uint8_t backlight_ = 90;
+};
+
+// Global instance — the firmware does one thing, so one dial is enough.
+extern DialUi dialUi;
