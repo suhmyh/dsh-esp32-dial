@@ -425,6 +425,9 @@ void DialUi::setState(const JsonDocument& doc) {
     // Show the clock and its subtitle.
     lv_obj_clear_flag(clockLabel_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(clockSubLabel_, LV_OBJ_FLAG_HIDDEN);
+    // Hide the working-phase detail label: it overlaps the idle grid's
+    // bottom row, and its text (the last tool's command) is noise on idle.
+    lv_obj_add_flag(detailLabel_, LV_OBJ_FLAG_HIDDEN);
     // Hide the working-phase activity list.
     for (uint8_t i = 0; i < kActivityLines; ++i) {
       lv_obj_add_flag(activityRows_[i], LV_OBJ_FLAG_HIDDEN);
@@ -439,6 +442,7 @@ void DialUi::setState(const JsonDocument& doc) {
   } else {
     lv_obj_add_flag(clockLabel_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(clockSubLabel_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(detailLabel_, LV_OBJ_FLAG_HIDDEN);
     for (int i = 0; i < 4; ++i) {
       lv_obj_add_flag(idleColLeft_[i], LV_OBJ_FLAG_HIDDEN);
       lv_obj_add_flag(idleColRight_[i], LV_OBJ_FLAG_HIDDEN);

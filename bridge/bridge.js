@@ -289,7 +289,7 @@ function toolLine(name, args) {
 		case "glob":        return `查找 ${a.pattern ?? ""}`;
 		case "grep":        return `搜索 ${a.pattern ?? ""}`;
 		case "web_search":  return `联网搜索 ${a.query ?? ""}`;
-		case "pwsh":        return firstLine(a.description ?? a.command, "执行命令");
+		case "pwsh":        return a.description ? firstLine(a.description, "执行命令") : "执行命令";
 		case "job_output":  return "读取任务输出";
 		case "job_list":    return "列出任务";
 		case "job_kill":    return "停止任务";
