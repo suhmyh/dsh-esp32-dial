@@ -170,6 +170,7 @@ class DialUi {
   // in DialUi.cpp for the full list of characters that render as boxes).
   lv_obj_t* footerIcon_ = nullptr;   // LVGL symbol (Montserrat)
   lv_obj_t* footerText_ = nullptr;   // "已连接" / "离线" (SIMSUN)
+  lv_obj_t* footerMid_ = nullptr;    // "上下文 xx%" — idle footer centre (SIMSUN)
   lv_obj_t* footerRight_ = nullptr;  // battery — SIMSUN, ASCII only
   // Idle face: three-column layout — 4 stat rows left, clock centre, 4 right.
   // Each stat is one label with recolor: "值\n#5d6478 名#" (value white, name gray).

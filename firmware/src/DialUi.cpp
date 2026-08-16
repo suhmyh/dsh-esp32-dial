@@ -152,30 +152,33 @@ void DialUi::buildMainScreen() {
 
   // ── idle face ──────────────────────────────────────────────────────────
   // A desk device that is not working should still be worth looking at, so the
-  // idle phase is a clock. Both labels hide themselves the moment work starts.
+  // idle phase is a clock. The clock sits at 32px (not 48) so the three-column
+  // stat grid on either side has room to breathe — matching the HTML mockup.
   clockLabel_ = lv_label_create(scr);
-  lv_obj_align(clockLabel_, LV_ALIGN_CENTER, 0, -34);
-  lv_obj_set_style_text_font(clockLabel_, &lv_font_montserrat_48, 0);
+  lv_obj_align(clockLabel_, LV_ALIGN_CENTER, 0, -24);
+  lv_obj_set_style_text_font(clockLabel_, &lv_font_montserrat_32, 0);
   lv_obj_set_style_text_color(clockLabel_, kWhite, 0);
   lv_label_set_text(clockLabel_, "--:--");
   lv_obj_add_flag(clockLabel_, LV_OBJ_FLAG_HIDDEN);
 
   clockSubLabel_ = lv_label_create(scr);
-  lv_obj_align(clockSubLabel_, LV_ALIGN_CENTER, 0, 2);
+  lv_obj_align(clockSubLabel_, LV_ALIGN_CENTER, 0, 8);
   lv_obj_set_style_text_font(clockSubLabel_, &dsh_font_cjk_16, 0);
   lv_obj_set_style_text_color(clockSubLabel_, kGray, 0);
   lv_label_set_text(clockSubLabel_, "空闲中");
   lv_obj_add_flag(clockSubLabel_, LV_OBJ_FLAG_HIDDEN);
 
   // ── idle three-column stats ────────────────────────────────────────────
-  // Four rows per side, each showing "值\n#5d6478 名#" (value white, name gray).
+  // Four rows per side, mirroring the HTML v6.1 mockup. Each stat is:
+  //   "#5d6478 名称#\n值"   (name in dim gray on line 1, value in white on line 2)
+  // This matches the HTML order: <span class="k">名称</span><span class="v">值</span>.
   // The left column labels are right-aligned, the right column left-aligned.
   // Positions mirror the docs/ui.html v6.1 grid: 22px margin + 106px side
   // columns + 1fr clock column + 106px + 22px = 360px.
   const lv_coord_t colLeftX = 22;
   const lv_coord_t colRightX = 232;
   const lv_coord_t colWidth = 106;
-  const lv_coord_t rowY[] = { 128, 158, 188, 218 };  // idle zone, centred on clock
+  const lv_coord_t rowY[] = { 112, 158, 204, 250 };  // idle zone, centred on clock
 
   for (int i = 0; i < 4; ++i) {
     idleColLeft_[i] = lv_label_create(scr);
@@ -268,6 +271,14 @@ void DialUi::buildMainScreen() {
   lv_obj_set_style_text_font(footerRight_, &dsh_font_cjk_16, 0);
   lv_obj_set_style_text_color(footerRight_, kGray, 0);
   lv_label_set_text(footerRight_, "");
+
+  // Footer centre — context pressure as text, mirroring the HTML idle-foot
+  // ("上下文 41%"). Sits between the link state and the battery.
+  footerMid_ = lv_label_create(scr);
+  lv_obj_align(footerMid_, LV_ALIGN_BOTTOM_MID, 0, -14);
+  lv_obj_set_style_text_font(footerMid_, &dsh_font_cjk_16, 0);
+  lv_obj_set_style_text_color(footerMid_, kGray, 0);
+  lv_label_set_text(footerMid_, "");
 }
 
 // ── ask overlay ──────────────────────────────────────────────────────────
@@ -433,10 +444,11 @@ void DialUi::setState(const JsonDocument& doc) {
     const char* rightNames[] = { "首token", "速度", "缓存", "输入" };
     JsonObjectConst s = doc["s"].as<JsonObjectConst>();
     for (int i = 0; i < 4; ++i) {
+      // HTML order: name (k) dim gray on top, value (v) bright below.
       const char* v = s.isNull() ? "" : (s[leftKeys[i]] | "");
       char buf[60];
       if (strlen(v) > 0) {
-        snprintf(buf, sizeof(buf), "%s\n#5d6478 %s#", v, leftNames[i]);
+        snprintf(buf, sizeof(buf), "#5d6478 %s#\n%s", leftNames[i], v);
       } else {
         snprintf(buf, sizeof(buf), "#5d6478 %s#", leftNames[i]);
       }
@@ -444,7 +456,7 @@ void DialUi::setState(const JsonDocument& doc) {
 
       const char* vr = s.isNull() ? "" : (s[rightKeys[i]] | "");
       if (strlen(vr) > 0) {
-        snprintf(buf, sizeof(buf), "%s\n#5d6478 %s#", vr, rightNames[i]);
+        snprintf(buf, sizeof(buf), "#5d6478 %s#\n%s", rightNames[i], vr);
       } else {
         snprintf(buf, sizeof(buf), "#5d6478 %s#", rightNames[i]);
       }
@@ -545,6 +557,24 @@ void DialUi::setFooter(const JsonDocument& doc) {
     lv_obj_set_style_text_color(footerRight_, battery < 20 ? kRed : kGray, 0);
   } else {
     lv_label_set_text(footerRight_, "");
+  }
+
+  // Context pressure between link and battery, mirroring the HTML idle-foot.
+  if (footerMid_ != nullptr) {
+    const uint8_t ctx = doc["ctx"] | 0;
+    if (ctx > 0) {
+      char buf[24];
+      snprintf(buf, sizeof(buf), "上下文 %u%%", ctx);
+      lv_label_set_text(footerMid_, buf);
+      // The same colour coding as the arc: green → yellow → red.
+      lv_obj_set_style_text_color(footerMid_,
+          ctx < 50 ? kGreen : ctx < 80 ? kYellow : kRed, 0);
+      lv_obj_clear_flag(footerMid_, LV_OBJ_FLAG_HIDDEN);
+    } else {
+      lv_label_set_text(footerMid_, "");
+      lv_obj_set_style_text_color(footerMid_, kGray, 0);
+      lv_obj_add_flag(footerMid_, LV_OBJ_FLAG_HIDDEN);
+    }
   }
 }
 
@@ -826,6 +856,7 @@ void DialUi::setConnecting(const char* message) {
     if (idleColRight_[i] != nullptr) lv_obj_add_flag(idleColRight_[i], LV_OBJ_FLAG_HIDDEN);
   }
   // The footer stays: link state and battery are exactly what matters now.
+  if (footerMid_ != nullptr) lv_obj_add_flag(footerMid_, LV_OBJ_FLAG_HIDDEN);
   updateArc(0);
 }
 
