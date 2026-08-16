@@ -153,11 +153,11 @@ void DialUi::buildMainScreen() {
   lv_label_set_text(phaseLabel_, LV_SYMBOL_MINUS);
 
   // Small DeepSeek whale icon, top-right of the title area.
-  // Uses a simple LVGL image in raw format (no external converter needed).
-  // The pixel data is defined in WhaleIcon.cpp as RGB565 with chroma key.
   whaleIcon_ = lv_img_create(scr);
   lv_img_set_src(whaleIcon_, &whaleIcon);
   lv_obj_align(whaleIcon_, LV_ALIGN_TOP_RIGHT, -8, 60);
+  lv_obj_set_style_image_recolor(whaleIcon_, kWhite, 0);
+  lv_obj_set_style_image_recolor_opa(whaleIcon_, LV_OPA_COVER, 0);
 
   // Title — session title, under the icon.
   titleLabel_ = lv_label_create(scr);
@@ -433,6 +433,7 @@ void DialUi::setState(const JsonDocument& doc) {
   // Each phase owns a different centre: idle is a clock, working is the list of
   // what DSH is doing. Toggling visibility here keeps the two from overlapping.
   const bool idleFace = (newPhase == DialPhase::Idle ||
+                         newPhase == DialPhase::Thinking ||
                          newPhase == DialPhase::Offline);
   if (idleFace) {
     // Show the clock and its subtitle.
