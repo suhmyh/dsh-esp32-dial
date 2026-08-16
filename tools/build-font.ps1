@@ -47,7 +47,12 @@ Write-Host ($cjk -join '')
 # Characters the bridge may send that no source file literal contains yet, plus
 # the punctuation the status line needs. Kept explicit so a formatting change on
 # the bridge side cannot silently reintroduce boxes.
-$extra = '·、。：（）％'
+#
+# Full-width punctuation beyond the basics: the approval title ends with a
+# full-width question mark ("允许 read 运行？") and the fallback question
+# buttons are 是/否 — none of those appear as literals in the source, so they
+# have to be listed here.
+$extra = '·、。：（）％？！；，是否文件'
 $symbols = ($extra.ToCharArray() | Sort-Object -Unique) -join ''
 
 # ── 2. Build the codepoint range argument ─────────────────────────────────
