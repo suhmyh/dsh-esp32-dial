@@ -152,10 +152,12 @@ void DialUi::buildMainScreen() {
   lv_obj_set_style_text_color(phaseLabel_, kWhite, 0);
   lv_label_set_text(phaseLabel_, LV_SYMBOL_MINUS);
 
-  // Small DeepSeek whale icon, top-right of the title area.
+  // Small DeepSeek whale icon, just left of the phase icon, both centered
+  // together at the top of the dial. Keeping it on-axis avoids the circular
+  // bezel clipping it (which happened at TOP_RIGHT on a 360px round screen).
   whaleIcon_ = lv_img_create(scr);
   lv_img_set_src(whaleIcon_, &whaleIcon);
-  lv_obj_align(whaleIcon_, LV_ALIGN_TOP_RIGHT, -8, 60);
+  lv_obj_align_to(whaleIcon_, phaseLabel_, LV_ALIGN_OUT_LEFT_MID, 6, 0);
   lv_obj_set_style_img_recolor(whaleIcon_, kWhite, 0);
   lv_obj_set_style_img_recolor_opa(whaleIcon_, LV_OPA_COVER, 0);
 

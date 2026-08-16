@@ -547,6 +547,7 @@ const pendingAsks = new Map();
 
 /** Latest derived state, and whether DSH is currently reachable. */
 let lastState;
+let lastSnapshot;
 let dshOnline = false;
 
 /**
@@ -597,6 +598,7 @@ async function tick() {
 	}
 
 	const next = deriveState(snapshot, lastState);
+	lastSnapshot = snapshot;
 	const changed = lastState === undefined ||
 		next.phase !== lastState.phase ||
 		next.title !== lastState.title ||
@@ -887,6 +889,7 @@ function watchDshEvents() {
 		if (method === "session/projection") {
 			if (payload.values !== undefined) {
 				const snapshot = { items: [{ projections: { values: payload.values } }] };
+				lastSnapshot = snapshot;
 				const next = deriveState(snapshot, lastState);
 				next.sessions = lastState?.sessions ?? 1;
 				next.running = lastState?.running ?? 0;
@@ -990,12 +993,12 @@ function watchDshEvents() {
 				}
 			}
 			// Re-derive after every tool event so the dial sees the update
-			// promptly. The session/jobs handler also re-derives, so the last
-			// one to run wins, but that is fine — change detection prevents
-			// redundant sends.
-			if (lastState !== undefined) {
-				const next = { ...lastState, acts: buildActs() };
-				if (JSON.stringify(next.acts) !== JSON.stringify(lastState.acts)) {
+			// promptly. Recomputing only `acts` left `phase` stale: a tool
+			// starting or finishing is exactly what flips thinking↔working,
+			// and that flip was waiting for the next session/jobs poll.
+			if (lastState !== undefined && lastSnapshot !== undefined) {
+				const next = deriveState(lastSnapshot, lastState);
+				if (JSON.stringify(next) !== JSON.stringify(lastState)) {
 					lastState = next;
 					broadcast(toFrame(next));
 				}
