@@ -198,8 +198,8 @@ void DialUi::buildMainScreen() {
 
   for (int i = 0; i < 4; ++i) {
     idleColLeft_[i] = lv_label_create(scr);
-    lv_obj_set_pos(idleColLeft_[i], 22, rowY[i]);
-    lv_obj_set_width(idleColLeft_[i], 106);
+    lv_obj_set_pos(idleColLeft_[i], 30, rowY[i]);
+    lv_obj_set_width(idleColLeft_[i], 116);
     lv_obj_set_style_text_font(idleColLeft_[i], &dsh_font_cjk_16, 0);
     lv_obj_set_style_text_color(idleColLeft_[i], kWhite, 0);
     lv_label_set_long_mode(idleColLeft_[i], LV_LABEL_LONG_DOT);
@@ -208,8 +208,8 @@ void DialUi::buildMainScreen() {
     lv_obj_add_flag(idleColLeft_[i], LV_OBJ_FLAG_HIDDEN);
 
     idleColRight_[i] = lv_label_create(scr);
-    lv_obj_set_pos(idleColRight_[i], 232, rowY[i]);
-    lv_obj_set_width(idleColRight_[i], 106);
+    lv_obj_set_pos(idleColRight_[i], 214, rowY[i]);
+    lv_obj_set_width(idleColRight_[i], 116);
     lv_obj_set_style_text_font(idleColRight_[i], &dsh_font_cjk_16, 0);
     lv_obj_set_style_text_color(idleColRight_[i], kWhite, 0);
     lv_label_set_long_mode(idleColRight_[i], LV_LABEL_LONG_DOT);
@@ -224,8 +224,8 @@ void DialUi::buildMainScreen() {
   for (int i = 0; i < 4; ++i) {
     const char* leftNames[] = { "轮次", "步数", "LLM", "工具" };
     idleNameLeft_[i] = lv_label_create(scr);
-    lv_obj_set_pos(idleNameLeft_[i], 22, rowY[i] - 18);
-    lv_obj_set_width(idleNameLeft_[i], 106);
+    lv_obj_set_pos(idleNameLeft_[i], 30, rowY[i] - 18);
+    lv_obj_set_width(idleNameLeft_[i], 116);
     lv_obj_set_style_text_font(idleNameLeft_[i], &dsh_font_cjk_16, 0);
     lv_obj_set_style_text_color(idleNameLeft_[i], kGray, 0);
     lv_label_set_long_mode(idleNameLeft_[i], LV_LABEL_LONG_DOT);
@@ -235,8 +235,8 @@ void DialUi::buildMainScreen() {
 
     const char* rightNames[] = { "首token", "速度", "缓存", "输入" };
     idleNameRight_[i] = lv_label_create(scr);
-    lv_obj_set_pos(idleNameRight_[i], 232, rowY[i] - 18);
-    lv_obj_set_width(idleNameRight_[i], 106);
+    lv_obj_set_pos(idleNameRight_[i], 214, rowY[i] - 18);
+    lv_obj_set_width(idleNameRight_[i], 116);
     lv_obj_set_style_text_font(idleNameRight_[i], &dsh_font_cjk_16, 0);
     lv_obj_set_style_text_color(idleNameRight_[i], kGray, 0);
     lv_label_set_long_mode(idleNameRight_[i], LV_LABEL_LONG_DOT);
