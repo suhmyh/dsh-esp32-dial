@@ -465,8 +465,17 @@ int QSPI_Init(void){
     .flags = SPICOMMON_BUSFLAG_MASTER,       
     .intr_flags = 0,                            
   };
-  if(spi_bus_initialize(ESP_PANEL_HOST_SPI_ID_DEFAULT, &host_config, SPI_DMA_CH_AUTO) != ESP_OK){
-    printf("The SPI initialization failed.\r\n");
+  // DSH change: tolerate an already-initialised bus.
+  //
+  // Upstream bailed out whenever spi_bus_initialize() was not ESP_OK, so a
+  // second call — which happens if anything initialises the display twice —
+  // returned failure *after* the panel had already been hardware-reset, leaving
+  // the screen reset but never re-initialised: backlight on, nothing drawn.
+  // ESP_ERR_INVALID_STATE only means "this host is already set up", which is
+  // exactly the state we need, so it is not an error for our purposes.
+  esp_err_t bus_ret = spi_bus_initialize(ESP_PANEL_HOST_SPI_ID_DEFAULT, &host_config, SPI_DMA_CH_AUTO);
+  if(bus_ret != ESP_OK && bus_ret != ESP_ERR_INVALID_STATE){
+    printf("The SPI initialization failed (err 0x%x).\r\n", bus_ret);
     return 0;
   }
   printf("The SPI initialization succeeded.\r\n");

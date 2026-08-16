@@ -93,7 +93,8 @@ void setup() {
   Serial.println("[i2c] bus ready");
 
   // ── Display ───────────────────────────────────────────────────────────
-  ST77916_Init();
+  // LCD_Init() calls pinMode(RST, OUTPUT), ST77916_Init(), and Touch_Init()
+  // internally, so the three do not need to be called separately.
   LCD_Init();
   Backlight_Init();
   Set_Backlight(DSH_FULL_BRIGHTNESS);
@@ -104,10 +105,6 @@ void setup() {
   // PSRAM, so it must not be preceded by another lv_init().
   LvglPort_Init();
   Serial.println("[lvgl] 8.4.0 ready (display + touch registered)");
-
-  // ── Touch ──────────────────────────────────────────────────────────────
-  Touch_Init();
-  Serial.println("[touch] CST816 ready");
 
   // ── Audio ──────────────────────────────────────────────────────────────
   // The 1.85B carries a PCM5101 DAC while the vendored AudioFeedback targets an
