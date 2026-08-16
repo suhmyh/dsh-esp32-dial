@@ -28,26 +28,34 @@ body{background:#1a1a2e;display:flex;justify-content:center;align-items:center;m
 .evt.done{opacity:.55}
 .evt.now{background:rgba(255,255,255,.14);color:#fff;font-weight:600;box-shadow:0 0 0 1px rgba(255,255,255,.2)}
 
-/* 空闲态侧边状态列 — 替代底部状态栏 */
-.idle-side{position:absolute;inset:0;z-index:3;display:none;pointer-events:none}
-.idle-side.show{display:block}
-.idle-side .col{position:absolute;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:8px;font-size:11px;color:#8891a5}
-.idle-side .col.left{right:196px;align-items:flex-end}
-.idle-side .col.right{left:196px;align-items:flex-start}
-.idle-side .row{display:flex;align-items:center;gap:4px;line-height:1.2;white-space:nowrap}
-.idle-side .dot{width:6px;height:6px;border-radius:50%;display:inline-block;flex:none}
-.idle-side .dot.on{background:#4CAF50}
-.idle-side .dot.off{background:#666}
-.idle-side .ctx-bar{width:50px;height:4px;border-radius:2px;background:#1a1a2e;overflow:hidden;flex:none}
-.idle-side .ctx-bar div{height:100%;border-radius:2px;background:#1E88E5;transition:width .5s}
-.idle-side .batt-bar{width:16px;height:8px;border:1px solid #3a3f52;border-radius:2px;padding:1px;display:flex;flex:none}
-.idle-side .batt-bar div{height:100%;border-radius:1px;background:#4CAF50;transition:width .5s}
-.idle-side .batt-bar div.low{background:#E53935}
-
-/* 空闲统计滚动条 — 仍在底部 */
-.ticker{position:absolute;bottom:38px;left:0;right:0;z-index:3;overflow:hidden;height:22px;display:flex;align-items:center;pointer-events:none}
-.ticker .roll{display:inline-block;white-space:nowrap;padding-left:100%;animation:roll 22s linear infinite;font-size:12px;color:#8891a5}
-@keyframes roll{0%{transform:translateX(0)}100%{transform:translateX(-100%)}}
+/* 空闲态：三列网格 — 统计分列在时钟两侧，静态不滚动。
+   用 grid 而不是绝对定位，是因为三列互斥占位，结构上不可能与时钟重叠：
+   22px 边距 + 106px 左列 + 104px 中列(时钟) + 106px 右列 + 22px 边距 = 360 */
+.idle-grid{position:absolute;inset:0;z-index:3;display:none;grid-template-columns:106px 1fr 106px;align-items:center;padding:0 22px;pointer-events:none}
+.idle-grid.show{display:grid}
+.idle-col{display:flex;flex-direction:column;gap:7px;font-size:10px;color:#8891a5;line-height:1.15}
+.idle-col.left{align-items:flex-end;text-align:right}
+.idle-col.right{align-items:flex-start;text-align:left}
+.idle-col .k{color:#5d6478;font-size:9px}
+.idle-col .v{color:#c3cadb;font-weight:600;font-size:11px;font-variant-numeric:tabular-nums}
+.idle-col .stat{display:flex;flex-direction:column;gap:0}
+/* 中列只放时钟，网格保证它不会被两侧压到 */
+.idle-mid{display:flex;flex-direction:column;align-items:center;justify-content:center}
+.idle-mid .clock{font-size:34px;font-weight:300;color:#fff;letter-spacing:0;font-variant-numeric:tabular-nums;line-height:1.05}
+.idle-mid .clock-sub{font-size:10px;color:#8891a5;margin-top:3px}
+/* 空闲底部：连接状态和电量，横向居中一行 */
+.idle-foot{position:absolute;bottom:30px;left:0;right:0;z-index:3;display:none;justify-content:center;align-items:center;gap:10px;font-size:10px;color:#5d6478;pointer-events:none}
+.idle-foot.show{display:flex}
+.idle-foot .dot{width:6px;height:6px;border-radius:50%;display:inline-block;flex:none}
+.idle-foot .dot.on{background:#4CAF50}
+.idle-foot .dot.off{background:#666}
+.idle-foot .seg{display:flex;align-items:center;gap:4px}
+.idle-foot .batt-bar{width:16px;height:8px;border:1px solid #3a3f52;border-radius:2px;padding:1px;display:flex;flex:none}
+.idle-foot .batt-bar div{height:100%;border-radius:1px;background:#4CAF50;transition:width .5s}
+.idle-foot .batt-bar div.low{background:#E53935}
+/* 布局边界辅助线 — 用于确认三列没有重叠 */
+.dial.debug .idle-col{outline:1px dashed rgba(255,120,120,.55)}
+.dial.debug .idle-mid{outline:1px dashed rgba(120,200,255,.75)}
 
 /* 底部状态栏 — 非空闲时使用 */
 .status-bar{position:absolute;bottom:10px;left:16px;right:16px;display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#3a3f52;z-index:3;pointer-events:none}
@@ -120,18 +128,31 @@ body{background:#1a1a2e;display:flex;justify-content:center;align-items:center;m
 
   <div class="queue-indicator" id="queueBadge">3 待处理</div>
 
-  <!-- 空闲侧边状态列 — 时钟两侧，固定位置不漂移 -->
-  <div class="idle-side" id="idleSide">
-    <!-- 左列：右对齐 -->
-    <div class="col left">
-      <div class="row"><span class="dot on" id="idleStatusDot"></span><span id="idleStatusTxt">已连接</span></div>
-      <div class="row"><span id="idleCtxTxt">上下文 41%</span><span class="ctx-bar"><div id="idleCtxBar" style="width:41%"></div></span></div>
+  <!-- 空闲三列布局：统计分列时钟两侧，静态不滚动 -->
+  <div class="idle-grid" id="idleGrid">
+    <div class="idle-col left">
+      <div class="stat"><span class="k">轮次</span><span class="v" id="sTurns">125</span></div>
+      <div class="stat"><span class="k">步数</span><span class="v" id="sSteps">1397</span></div>
+      <div class="stat"><span class="k">LLM</span><span class="v" id="sLlm">643m0s</span></div>
+      <div class="stat"><span class="k">工具调用</span><span class="v" id="sTool">316m29s</span></div>
     </div>
-    <!-- 右列：左对齐 -->
-    <div class="col right">
-      <div class="row"><span class="batt-bar"><div id="idleBattBar" style="width:85%"></div></span><span id="idleBattTxt">85%</span></div>
-      <div class="row"><span id="idleSessTxt">4 会话</span></div>
+    <div class="idle-mid">
+      <div class="clock" id="idleClock">17:35</div>
+      <div class="clock-sub" id="idleClockSub">空闲中</div>
     </div>
+    <div class="idle-col right">
+      <div class="stat"><span class="k">首 token</span><span class="v" id="sTtft">20.9s</span></div>
+      <div class="stat"><span class="k">速度</span><span class="v" id="sTps">87 tok/s</span></div>
+      <div class="stat"><span class="k">缓存命中</span><span class="v" id="sCache">71%</span></div>
+      <div class="stat"><span class="k">输入</span><span class="v" id="sIn">181M</span></div>
+    </div>
+  </div>
+
+  <!-- 空闲底部：连接与电量 -->
+  <div class="idle-foot" id="idleFoot">
+    <span class="seg"><span class="dot on" id="idleDot"></span><span id="idleLink">已连接</span></span>
+    <span class="seg"><span class="batt-bar"><div id="idleBatt" style="width:85%"></div></span><span id="idleBattTxt">85%</span></span>
+    <span class="seg" id="idleCtxSeg">上下文 41%</span>
   </div>
 
   <!-- 主内容 -->
@@ -210,10 +231,12 @@ body{background:#1a1a2e;display:flex;justify-content:center;align-items:center;m
   <label>电池</label>
   <input type="range" id="battSlider" min="0" max="100" value="85">
   <div class="note">
-    <b>v6 改动</b>：空闲时底栏状态移到时钟两侧列，固定位置不漂移。<br>
-    ● 左列：连接状态 + 上下文压力（带进度条）<br>
-    ● 右列：电量 + 会话数<br>
-    ● 底部滚动条保留显示统计信息
+    <b>v6 空闲三列布局</b>：统计数据分列时钟两侧，静态不滚动，无重叠。<br>
+    ● 左列：轮次 / 步数 / LLM 时长 / 工具调用时长<br>
+    ● 中列：时钟 + 空闲中<br>
+    ● 右列：首 token 平均 / tok/s / 缓存命中 / 输入<br>
+    ● 底部：连接状态 + 电量 + 上下文压力<br>
+    <b>确认无重叠后</b>，我会把 Layout 写进固件 DialUi.cpp。
   </div>
 </div>
 
@@ -223,15 +246,20 @@ const bg = $('dialBg'), icon = $('phaseIcon'), titleText = $('titleText');
 const arcFill = $('arcFill'), arcLen = 1018;
 const clockDisplay = $('clockDisplay'), clockSub = $('clockSub');
 const eventList = $('eventList'), ticker = $('ticker');
+const mainContent = $('mainContent');
 const statusDot = $('statusDot'), statusLabel = $('statusLabel');
 const battFill = $('battFill'), battPct = $('battPct'), wifiLabel = $('wifiLabel');
 const askOverlay = $('askOverlay'), askMain = $('askMain');
 const askAgent = $('askAgent'), askTitle = $('askTitle'), askSub = $('askSub'), askBody = $('askBody');
 const queueBadge = $('queueBadge');
-const idleSide = $('idleSide'), statusBar = $('statusBar');
-const idleStatusDot = $('idleStatusDot'), idleStatusTxt = $('idleStatusTxt');
-const idleCtxTxt = $('idleCtxTxt'), idleCtxBar = $('idleCtxBar');
-const idleBattBar = $('idleBattBar'), idleBattTxt = $('idleBattTxt'), idleSessTxt = $('idleSessTxt');
+const idleGrid = $('idleGrid'), idleFoot = $('idleFoot');
+const idleDot = $('idleDot'), idleLink = $('idleLink');
+const idleCtxSeg = $('idleCtxSeg');
+const idleBattBar = $('idleBatt'), idleBattTxt = $('idleBattTxt');
+const idleClock = $('idleClock'), idleClockSub = $('idleClockSub');
+// 统计格
+const sTurns = $('sTurns'), sSteps = $('sSteps'), sLlm = $('sLlm'), sTool = $('sTool');
+const sTtft = $('sTtft'), sTps = $('sTps'), sCache = $('sCache'), sIn = $('sIn');
 
 const EVENTS = [
   { ic:'📄', tx:'读取 src/config.yml', done:true },
@@ -274,23 +302,39 @@ function updateUI(){
 
   const showClock = phase === 'idle' || phase === 'offline';
   const isIdle = phase === 'idle';
-  clockDisplay.style.display = showClock ? 'block' : 'none';
-  clockSub.style.display = showClock ? 'block' : 'none';
+  // 空闲时时钟由三列网格的中列渲染，所以这里的居中时钟必须让位，
+  // 否则两个时钟会重叠——这正是上一版覆盖问题的来源。
+  clockDisplay.style.display = (showClock && !isIdle) ? 'block' : 'none';
+  clockSub.style.display = (showClock && !isIdle) ? 'block' : 'none';
   icon.style.display = showClock ? 'none' : 'block';
-  ticker.style.display = isIdle ? 'flex' : 'none';
-  idleSide.className = 'idle-side' + (isIdle ? ' show' : '');
+  // 空闲：三列统计 + 底部连接行；非空闲：隐藏
+  idleGrid.className = 'idle-grid' + (isIdle ? ' show' : '');
+  idleFoot.className = 'idle-foot' + (isIdle ? ' show' : '');
+  ticker.style.display = 'none';  // v6: 统计已静态分列，不再滚动
   statusBar.style.display = isIdle ? 'none' : 'flex';
+  // 空闲时正文整块让位给三列网格，避免标题/事件列表与统计抢地方
+  mainContent.style.display = isIdle ? 'none' : 'flex';
+  idleClock.textContent = hhmm();
+  idleClockSub.textContent = '空闲中';
 
-  // 更新侧边状态列
+  // 更新统计格
+  sTurns.textContent = '125';
+  sSteps.textContent = '1397';
+  sLlm.textContent = '643m0s';
+  sTool.textContent = '316m29s';
+  sTtft.textContent = '20.9s';
+  sTps.textContent = '87 tok/s';
+  sCache.textContent = '71%';
+  sIn.textContent = '181M';
+
+  // 底部行
   const isOffline = phase === 'offline';
-  idleStatusDot.className = 'dot ' + (isOffline ? 'off' : 'on');
-  idleStatusTxt.textContent = isOffline ? '离线' : '已连接';
-  idleCtxTxt.textContent = '上下文 ' + ctx + '%';
-  idleCtxBar.style.width = ctx + '%';
+  idleDot.className = 'dot ' + (isOffline ? 'off' : 'on');
+  idleLink.textContent = isOffline ? '离线' : '已连接';
   idleBattBar.style.width = batt + '%';
   idleBattBar.className = batt < 20 ? 'low' : '';
   idleBattTxt.textContent = batt + '%';
-  idleSessTxt.textContent = '4 会话';
+  idleCtxSeg.textContent = '上下文 ' + ctx + '%';
 
   switch(phase){
     case 'idle':
@@ -452,7 +496,10 @@ $('battSlider').addEventListener('input', updateUI);
 
 setInterval(() => {
   const p = $('phaseSelect').value;
-  if(p === 'idle' || p === 'offline') clockDisplay.textContent = hhmm();
+  if(p === 'idle' || p === 'offline'){
+    if(p === 'idle') idleClock.textContent = hhmm();
+    else clockDisplay.textContent = hhmm();
+  }
 }, 10000);
 
 updateUI();
