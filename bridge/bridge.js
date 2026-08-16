@@ -222,7 +222,90 @@ const liveFacts = {
 	jobs: [],
 	/** When the jobs list last changed, for freshness decisions. */
 	jobsAt: 0,
+	/**
+	 * Recent tool calls, oldest first, capped at kActLimit.
+	 *
+	 * This is the list the dial's working screen shows. It comes from the
+	 * `tool/call` / `tool/result` event stream rather than from `session/jobs`,
+	 * because jobs only ever contains shell commands: reading a file, searching
+	 * the web, or editing source produced no entry at all, which is why the dial
+	 * showed a shell command repeated instead of what DSH was actually doing.
+	 *
+	 * Each entry is { id, name, arg, running }.
+	 */
+	tools: [],
 };
+
+/** How many activity rows the dial can draw. */
+const kActLimit = 3;
+
+/**
+ * The activity rows the dial draws while working.
+ *
+ * Tool calls are the source of truth: they are what a person would describe as
+ * the work ("读取 DialUi.cpp"). Shell jobs are the fallback — they exist only
+ * when DSH runs a command without a tool, which is the common case on machines
+ * talking to this bridge is not. Mixing both would double-report the same work,
+ * so tools win outright when the list is non-empty.
+ */
+function buildActs() {
+	// Idle means the work is over: showing the last three things DSH did would
+	// leave a frozen list on screen with nothing driving it. The idle face has
+	// its own content (clock and statistics), so return nothing here.
+	const tools = liveFacts.tools
+		.slice(-kActLimit)
+		.map(formatToolAct)
+		.filter((a) => a.t !== "");
+	if (tools.length > 0) return tools;
+	return formatActivity(liveFacts.jobs);
+}
+
+/**
+ * Turn one tool call into the single line a 360px circle can show.
+ *
+ * The tool's own name is useless on its own ("read" tells you nothing) and its
+ * raw arguments are far too long, so each tool contributes the one argument a
+ * person would recognise: which file, which pattern, which command.
+ */
+function toolLine(name, args) {
+	// DSH sends `arguments` as a JSON *string*, not an object: treating it as an
+	// object silently yields undefined for every field, which showed up as bare
+	// tool names with no target on the dial.
+	let a = args;
+	if (typeof a === "string") {
+		try { a = JSON.parse(a); } catch { a = {}; }
+	}
+	if (a === null || typeof a !== "object") a = {};
+	const base = (v) => {
+		const s = String(v ?? "");
+		// Paths are mostly prefix; the tail is what identifies the file.
+		const parts = s.split(/[\\/]/);
+		return parts.length > 2 ? parts.slice(-2).join("/") : s;
+	};
+	switch (name) {
+		case "read":        return `读取 ${base(a.file_path)}`;
+		case "write":       return `写入 ${base(a.file_path)}`;
+		case "edit":        return `编辑 ${base(a.file_path)}`;
+		case "glob":        return `查找 ${a.pattern ?? ""}`;
+		case "grep":        return `搜索 ${a.pattern ?? ""}`;
+		case "web_search":  return `联网搜索 ${a.query ?? ""}`;
+		case "pwsh":        return firstLine(a.description ?? a.command, "执行命令");
+		case "job_output":  return "读取任务输出";
+		case "job_list":    return "列出任务";
+		case "job_kill":    return "停止任务";
+		case "todo_write":  return "更新任务清单";
+		case "subagent":
+		case "subagent_fork": return `子智能体 ${a.description ?? ""}`;
+		case "ask_user_question": return "等待你回答";
+		case "skill":       return `载入技能 ${a.name ?? ""}`;
+		default:            return name ? String(name) : "";
+	}
+}
+
+/** Icon-free label for one tool row, trimmed to the dial's width. */
+function formatToolAct(entry) {
+	return { t: String(entry.line ?? "").slice(0, 40), r: entry.running === true };
+}
 
 /**
  * Derive the dial's view of DSH from a `session.list` snapshot.
@@ -254,10 +337,13 @@ function deriveState(snapshot, previous) {
 
 	const goal = values.goal;
 	const todos = values.todos;
-	// Prefer the most specific thing we can name as the current activity. A
-	// running job is the most concrete: it is what the machine is doing now.
+	// Prefer the most specific thing we can name as the current activity. The
+	// newest running tool call beats a shell job, because "读取 DialUi.cpp" says
+	// more than the command that happens to be in flight.
+	const runningTool = [...liveFacts.tools].reverse().find((t) => t.running === true);
 	const runningJob = liveFacts.jobs.find((j) => j.status === "running");
-	const detail = runningJob !== undefined ? firstLine(runningJob.label, runningJob.kind)
+	const detail = runningTool !== undefined ? runningTool.line
+		: runningJob !== undefined ? firstLine(runningJob.label, runningJob.kind)
 		: goal?.objective !== undefined ? String(goal.objective).slice(0, 60)
 		: Array.isArray(todos) ? `${todos.filter((t) => t.status === "completed").length}/${todos.length} 任务`
 		: values.plan?.active === true ? "计划中"
@@ -274,7 +360,7 @@ function deriveState(snapshot, previous) {
 		perm: values.permissions?.currentValue ?? "",
 		sessions: items.length,
 		running: nowRunning,
-		acts: formatActivity(liveFacts.jobs),
+		acts: buildActs(),
 		stats: phase === "idle" ? formatStats(values) : "",
 		// The idle screen shows a clock, and the dial has no real-time clock chip
 		// and no NTP client — so the time has to arrive with the state. Sending it
@@ -470,6 +556,12 @@ async function tick() {
 		next.clock !== lastState.clock;
 
 	lastState = next;
+	if (next.phase !== "working") {
+		// Work stopped (idle/done/error/waiting): whatever the dial showed is
+		// over. Keeping the last tool calls would leave the next working burst
+		// showing stale activities at the top of its list.
+		liveFacts.tools = [];
+	}
 	if (changed) {
 		broadcast(toFrame(next));
 		log(`state → ${next.phase} | ${next.title || "(no title)"} | ctx ${next.ctx}% | ${next.running}/${next.sessions} running`);
@@ -627,22 +719,24 @@ function watchDshEvents() {
 		}
 
 		// ── session/jobs — running commands → liveFacts.jobs, then re-derive.
+		// The activity list (acts) prefers tool calls from the event stream
+		// over these shell jobs, so buildActs() is used rather than the old
+		// formatActivity(jobs) — without that, a session/jobs frame arriving
+		// after a tool/call would overwrite the human-readable tool names with
+		// raw shell commands. Detail also prefers the newest running tool.
 		if (method === "session/jobs") {
 			const jobs = Array.isArray(payload.jobs) ? payload.jobs : [];
 			liveFacts.jobs = jobs;
 			liveFacts.jobsAt = Date.now();
-			// Re-derive state from the last known snapshot, enriched with the
-			// live jobs list, and push if changed.
 			if (lastState !== undefined) {
 				const next = { ...lastState };
+				const runningTool = [...liveFacts.tools].reverse().find((t) => t.running === true);
 				const runningJob = jobs.find((j) => j.status === "running");
-				next.detail = runningJob !== undefined ? firstLine(runningJob.label, runningJob.kind)
+				next.detail = runningTool !== undefined ? runningTool.line
+					: runningJob !== undefined ? firstLine(runningJob.label, runningJob.kind)
 					: lastState.detail !== "" && lastState.phase === "working" ? "等待中"
 					: "";
-				next.acts = formatActivity(jobs);
-				// Both fields come from this same jobs push, so either one
-				// changing is a reason to send: comparing only `detail` would
-				// silently drop activity-list updates.
+				next.acts = buildActs();
 				if (next.detail !== lastState.detail ||
 					JSON.stringify(next.acts) !== JSON.stringify(lastState.acts)) {
 					lastState = next;
@@ -695,11 +789,50 @@ function watchDshEvents() {
 			return;
 		}
 
-		// ── session/event — the tool-call / message event stream. Payload
-		// shape varies; log the first few to confirm the fields a dial could
-		// use for an even more precise `detail`.
-		if (method === "session/event" && seen.size < 10) {
-			log(`session/event: ${JSON.stringify(payload).slice(0, 300)}`);
+		// ── session/event — the tool-call / message event stream. Record
+		// tool calls into liveFacts.tools for the working-screen activity list.
+		if (method === "session/event") {
+			const ev = payload?.event;
+			if (ev?.type === "tool/call") {
+				const name = ev.data?.name ?? "";
+				const callId = ev.data?.callId ?? "";
+				const line = toolLine(name, ev.data?.arguments);
+				if (line && line !== "") {
+					liveFacts.tools.push({ callId, name, line, running: true });
+					if (liveFacts.tools.length > kActLimit * 3) {
+						liveFacts.tools = liveFacts.tools.slice(-kActLimit * 3);
+					}
+				}
+			}
+			if (ev?.type === "tool/result") {
+				// Match on callId, which is unique per invocation. Matching on the
+				// tool name would close the wrong row whenever the same tool runs
+				// twice concurrently — exactly what a parallel fan-out does.
+				const callId = ev.data?.callId ?? "";
+				for (let i = liveFacts.tools.length - 1; i >= 0; i--) {
+					const t = liveFacts.tools[i];
+					if (t.running === true && (callId === "" ? true : t.callId === callId)) {
+						t.running = false;
+						break;
+					}
+				}
+			}
+			// Re-derive after every tool event so the dial sees the update
+			// promptly. The session/jobs handler also re-derives, so the last
+			// one to run wins, but that is fine — change detection prevents
+			// redundant sends.
+			if (lastState !== undefined) {
+				const next = { ...lastState, acts: buildActs() };
+				if (JSON.stringify(next.acts) !== JSON.stringify(lastState.acts)) {
+					lastState = next;
+					broadcast(toFrame(next));
+				}
+			}
+			// Log the first few events for development (as before).
+			if (seen.size < 10) {
+				log(`session/event: ${JSON.stringify(payload).slice(0, 300)}`);
+			}
+			return;
 		}
 	};
 
