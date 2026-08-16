@@ -608,8 +608,34 @@ async function onDeviceFrame(device, text) {
 			if (ask === undefined) { log(`answer for unknown ask ${frame.id}`); return; }
 			pendingAsks.delete(frame.id);
 			log(`answer: ${frame.id} → ${frame.choice}`);
+			const respond = ask.respond;
 			try {
-				await dshCall("respond", { ...ask.respondPayload, choice: frame.choice });
+				if (respond?.type === "approval") {
+					// The dial's option ids are already the DSH outcome values
+					// ("allowed-once" / "rejected"); anything else defaults to
+					// allowed-once (a confirm button).
+					const outcome = frame.choice === "rejected" ? "rejected" : "allowed-once";
+					await sendClientResponse(respond.rpcId, {
+						sessionId: respond.sessionId,
+						approvalId: respond.approvalId,
+						outcome,
+					});
+				} else if (respond?.type === "question") {
+					// selected holds option *labels* (the DSH contract), but the
+					// dial echoes option ids, so map id → label here.
+					const chosen = (respond.options ?? []).find((o) => o.id === frame.choice);
+					await sendClientResponse(respond.rpcId, {
+						sessionId: respond.sessionId,
+						answer: {
+							answers: [{
+								id: respond.questionId,
+								selected: [chosen !== undefined ? chosen.label : frame.choice],
+							}],
+						},
+					});
+				} else {
+					log(`answer with no respond spec: ${frame.id}`);
+				}
 			} catch (error) {
 				log(`WARN respond failed: ${error.message}`);
 			}
@@ -636,10 +662,14 @@ async function onDeviceFrame(device, text) {
 /**
  * Publish an ask to every dial. Called when DSH pushes an approval or question
  * frame; also used by the self-test to exercise the waiting path.
+ *
+ * `respond` carries everything the answer handler needs to compose the DSH
+ * client-response: at minimum { type: "approval" | "question", rpcId,
+ * sessionId } plus the type-specific ids (approvalId / questionId).
  */
-function publishAsk({ kind, title, body, options, respondPayload, ttlMs = 120000 }) {
+function publishAsk({ kind, title, body, options, respond, ttlMs = 120000 }) {
 	const id = `ask-${randomBytes(3).toString("hex")}`;
-	pendingAsks.set(id, { respondPayload: respondPayload ?? {}, at: Date.now() });
+	pendingAsks.set(id, { respond: respond ?? null, at: Date.now() });
 	broadcast({
 		t: "ask",
 		id,
@@ -652,6 +682,49 @@ function publishAsk({ kind, title, body, options, respondPayload, ttlMs = 120000
 	broadcast({ t: "beep", kind: "waiting" });
 	log(`ask published: ${id} (${kind}) ${title}`);
 	return id;
+}
+
+// ─────────────────────────────────────────────────────── DSH respond helper
+
+/**
+ * Answer a pending server-request (approval or question).
+ *
+ * The respond endpoint speaks the *client-response* envelope, not the unary
+ * client-request dshCall builds: rpcId must echo the server-request's id
+ * verbatim (DSH correlates answers by that id) and the business payload is the
+ * result.value slot. The HTTP response body is an RpcReceipt — separate from
+ * the envelope, so the HTTP body is not RpcResult and must not be read as one.
+ */
+function sendClientResponse(rpcId, value) {
+	return new Promise((resolve, reject) => {
+		const body = JSON.stringify({
+			type: "client-response",
+			rpcId,
+			result: { ok: true, value },
+		});
+		const req = httpRequest({
+			hostname: CONFIG.dshHost,
+			port: CONFIG.dshPort,
+			path: "/api/respond",
+			method: "POST",
+			headers: { "content-type": "application/json", "content-length": Buffer.byteLength(body) },
+			timeout: 8000,
+		}, (res) => {
+			const chunks = [];
+			res.on("data", (c) => chunks.push(c));
+			res.on("end", () => {
+				const text = Buffer.concat(chunks).toString("utf8");
+				let parsed;
+				try { parsed = JSON.parse(text); } catch { reject(new Error("non-JSON receipt")); return; }
+				if (parsed?.accepted === true) resolve(parsed);
+				else reject(new Error(`not accepted: ${parsed?.reason ?? "?"}`));
+			});
+		});
+		req.on("error", reject);
+		req.on("timeout", () => { req.destroy(new Error("timeout")); });
+		req.write(body);
+		req.end();
+	});
 }
 
 // ───────────────────────────────────────────────────────── DSH event listener
@@ -773,25 +846,60 @@ function watchDshEvents() {
 			return;
 		}
 
-		// Approval / question frames are the reason the stream is held open.
-		if (/approv|permission|user-question|userQuestion|ask/i.test(method)) {
-			log(`ASK-SHAPED FRAME: ${method} → ${JSON.stringify(payload).slice(0, 400)}`);
+		// ── approval/requested — a tool call is waiting for the human's verdict.
+		// The DSH contract specifies the frame as a server-request: `frame.rpcId`
+		// is the stable id the client-response must echo, and payload fields are
+		// at the top level of `payload` (not nested under a sub-object).
+		if (method === "approval/requested") {
 			const p = payload;
 			publishAsk({
-				kind: /question/i.test(method) ? "question" : "approval",
-				title: String(p.title ?? p.question ?? "需要你确认"),
-				body: String(p.body ?? p.command ?? p.detail ?? "").slice(0, 160),
-				options: Array.isArray(p.options) && p.options.length > 0
-					? p.options.slice(0, 3).map((o, i) => ({
-						id: String(o.id ?? o.value ?? i),
-						label: String(o.label ?? o.name ?? o.value ?? `选项${i + 1}`).slice(0, 8),
-						style: i === 0 ? "primary" : "danger",
-					}))
-					: [
-						{ id: "allow", label: "允许", style: "primary" },
-						{ id: "deny", label: "拒绝", style: "danger" },
-					],
-				respondPayload: { rpcId: frame.rpcId, method },
+				kind: "approval",
+				title: `允许 ${p.toolName ?? "工具"} 运行？`,
+				body: String(p.reason ?? "").slice(0, 120),
+				options: [
+					{ id: "allowed-once", label: "允许", style: "primary" },
+					{ id: "rejected", label: "拒绝", style: "danger" },
+				],
+				respond: {
+					type: "approval",
+					rpcId: frame.rpcId,
+					sessionId: p.sessionId,
+					approvalId: p.approvalId,
+				},
+			});
+			return;
+		}
+
+		// ── question/requested — ask_user_question rendered as button choices.
+		if (method === "question/requested") {
+			const p = payload;
+			const q = Array.isArray(p.questions) ? p.questions[0] : p;
+			if (q === undefined) {
+				log(`question/requested with no questions entry`);
+				return;
+			}
+			const options = Array.isArray(q.options) && q.options.length > 0
+				? q.options.slice(0, 3).map((o, i) => ({
+					id: String(o.label ?? `opt${i}`),
+					label: String(o.label ?? `选项${i + 1}`).slice(0, 8),
+					style: i === 0 ? "primary" : "danger",
+				}))
+				: [
+					{ id: "yes", label: "是", style: "primary" },
+					{ id: "no", label: "否", style: "danger" },
+				];
+			publishAsk({
+				kind: "question",
+				title: String(q.question ?? "需要你回答").slice(0, 40),
+				body: String(q.detail ?? "").slice(0, 120),
+				options,
+				respond: {
+					type: "question",
+					rpcId: frame.rpcId,
+					sessionId: p.sessionId,
+					questionId: q.id,
+					options, // copied so the answer handler can map id→label
+				},
 			});
 			return;
 		}
@@ -874,8 +982,10 @@ const server = createServer((req, res) => {
 					kind: p.kind ?? "approval",
 					title: p.title ?? "需要你确认",
 					body: p.body ?? "",
-					options: p.options ?? [{ id: "allow", label: "允许", style: "primary" }, { id: "deny", label: "拒绝", style: "danger" }],
-					respondPayload: p.respondPayload ?? {},
+					options: p.options ?? [{ id: "allowed-once", label: "允许", style: "primary" }, { id: "rejected", label: "拒绝", style: "danger" }],
+					respond: p.respond ?? (p.respondPayload !== undefined
+						? { type: "approval", rpcId: p.respondPayload.rpcId ?? "test", sessionId: "test", approvalId: "test", options: p.options }
+						: null),
 				});
 				res.writeHead(200, { "content-type": "application/json" });
 				res.end(JSON.stringify({ ok: true, askId: id }));
