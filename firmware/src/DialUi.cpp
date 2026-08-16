@@ -466,8 +466,10 @@ void DialUi::setState(const JsonDocument& doc) {
     for (int i = 0; i < 4; ++i) {
       const char* v = s.isNull() ? "" : (s[leftKeys[i]] | "");
       lv_label_set_text(idleColLeft_[i], strlen(v) > 0 ? v : "-");
+      lv_obj_invalidate(idleColLeft_[i]);
       const char* vr = s.isNull() ? "" : (s[rightKeys[i]] | "");
       lv_label_set_text(idleColRight_[i], strlen(vr) > 0 ? vr : "-");
+      lv_obj_invalidate(idleColRight_[i]);
     }
   }
 
