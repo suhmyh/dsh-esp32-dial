@@ -369,6 +369,11 @@ function deriveState(snapshot, previous) {
 		running: nowRunning,
 		acts: buildActs(),
 		stats: phase === "idle" ? formatStats(values) : "",
+		// Structured idle statistics, for the three-column grid layout.
+		// Each value is a short display-ready string; the firmware renders them
+		// into four fixed rows per side when the `s` field is present. Empty
+		// when not idle so the dial never shows stale stats during work.
+		s: phase === "idle" ? buildIdleStats(values) : null,
 		// The idle screen shows a clock, and the dial has no real-time clock chip
 		// and no NTP client — so the time has to arrive with the state. Sending it
 		// only when idle would leave the display stale for the first second after
@@ -460,6 +465,44 @@ function formatStats(values) {
 		parts.push(`输入 ${fmtTokens(totalIn)} tok · 输出 ${fmtTokens(tu?.outputTokens)} tok`);
 	}
 	return parts.join(" | ");
+}
+
+/**
+ * Build the structured idle statistics for the three-column grid.
+ *
+ * The dial's idle face is two fixed columns of four rows (轮次/步数/LLM/工具 on
+ * the left; 首token/速度/缓存命中/输入 on the right). Each value is formatted
+ * here, ready to render — same arithmetic as formatStats, but per-cell so the
+ * firmware does not parse a string. Returns null when the counters are absent,
+ * which the dial reads as "show the rows empty".
+ *
+ * Uses the same divisor guards as formatStats: a fresh session has zero steps,
+ * and a NaN would look worse than a blank cell.
+ */
+function buildIdleStats(values) {
+	const st = values?.sessionStats;
+	const tu = values?.tokenUsage;
+	if (st === undefined && tu === undefined) return null;
+
+	const cached = Number(tu?.cacheReadTokens ?? 0);
+	const uncached = Number(tu?.uncachedInputTokens ?? 0);
+	const totalIn = cached + uncached;
+
+	const ttft = st?.ttftMs > 0 && st?.ttftSteps > 0
+		? `${(st.ttftMs / st.ttftSteps / 1000).toFixed(1)}s` : "";
+	const tps = st?.decodeMs > 0 && st?.decodeTokens > 0
+		? `${Math.round(st.decodeTokens / (st.decodeMs / 1000))}` : "";
+
+	return {
+		turns: String(st?.turns ?? ""),
+		steps: String(st?.steps ?? ""),
+		llm: st?.llmMs !== undefined ? fmtDuration(st.llmMs) : "",
+		tool: st?.toolMs !== undefined ? fmtDuration(st.toolMs) : "",
+		ttft,
+		tps,
+		cache: totalIn > 0 ? `${Math.round((cached / totalIn) * 100)}%` : "",
+		inp: totalIn > 0 ? fmtTokens(totalIn) : "",
+	};
 }
 
 /**
@@ -558,6 +601,8 @@ async function tick() {
 		// actually watches change, so they must gate the send like the rest.
 		next.stats !== lastState.stats ||
 		JSON.stringify(next.acts) !== JSON.stringify(lastState.acts) ||
+		// The three-column idle grid has its own structured values.
+		JSON.stringify(next.s) !== JSON.stringify(lastState.s) ||
 		// A minute boundary moves the idle clock; without this, the frame goes
 		// out only when some other field changes and the clock visibly freezes.
 		next.clock !== lastState.clock;

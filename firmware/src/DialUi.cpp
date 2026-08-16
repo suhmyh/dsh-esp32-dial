@@ -164,8 +164,42 @@ void DialUi::buildMainScreen() {
   lv_obj_align(clockSubLabel_, LV_ALIGN_CENTER, 0, 2);
   lv_obj_set_style_text_font(clockSubLabel_, &dsh_font_cjk_16, 0);
   lv_obj_set_style_text_color(clockSubLabel_, kGray, 0);
-  lv_label_set_text(clockSubLabel_, "");
+  lv_label_set_text(clockSubLabel_, "空闲中");
   lv_obj_add_flag(clockSubLabel_, LV_OBJ_FLAG_HIDDEN);
+
+  // ── idle three-column stats ────────────────────────────────────────────
+  // Four rows per side, each showing "值\n#5d6478 名#" (value white, name gray).
+  // The left column labels are right-aligned, the right column left-aligned.
+  // Positions mirror the docs/ui.html v6.1 grid: 22px margin + 106px side
+  // columns + 1fr clock column + 106px + 22px = 360px.
+  const lv_coord_t colLeftX = 22;
+  const lv_coord_t colRightX = 232;
+  const lv_coord_t colWidth = 106;
+  const lv_coord_t rowY[] = { 128, 158, 188, 218 };  // idle zone, centred on clock
+
+  for (int i = 0; i < 4; ++i) {
+    idleColLeft_[i] = lv_label_create(scr);
+    lv_obj_set_pos(idleColLeft_[i], colLeftX, rowY[i]);
+    lv_obj_set_width(idleColLeft_[i], colWidth);
+    lv_obj_set_style_text_font(idleColLeft_[i], &dsh_font_cjk_16, 0);
+    lv_obj_set_style_text_color(idleColLeft_[i], kWhite, 0);
+    lv_label_set_recolor(idleColLeft_[i], true);
+    lv_label_set_long_mode(idleColLeft_[i], LV_LABEL_LONG_DOT);
+    lv_obj_set_style_text_align(idleColLeft_[i], LV_TEXT_ALIGN_RIGHT, 0);
+    lv_label_set_text(idleColLeft_[i], "");
+    lv_obj_add_flag(idleColLeft_[i], LV_OBJ_FLAG_HIDDEN);
+
+    idleColRight_[i] = lv_label_create(scr);
+    lv_obj_set_pos(idleColRight_[i], colRightX, rowY[i]);
+    lv_obj_set_width(idleColRight_[i], colWidth);
+    lv_obj_set_style_text_font(idleColRight_[i], &dsh_font_cjk_16, 0);
+    lv_obj_set_style_text_color(idleColRight_[i], kWhite, 0);
+    lv_label_set_recolor(idleColRight_[i], true);
+    lv_label_set_long_mode(idleColRight_[i], LV_LABEL_LONG_DOT);
+    lv_obj_set_style_text_align(idleColRight_[i], LV_TEXT_ALIGN_LEFT, 0);
+    lv_label_set_text(idleColRight_[i], "");
+    lv_obj_add_flag(idleColRight_[i], LV_OBJ_FLAG_HIDDEN);
+  }
 
   // ── working face: the tool-call activity list ───────────────────────────
   // Three rows, stacked centre-out. The running row is opaque and the finished
@@ -358,14 +392,27 @@ void DialUi::setState(const JsonDocument& doc) {
   const bool idleFace = (newPhase == DialPhase::Idle ||
                          newPhase == DialPhase::Offline);
   if (idleFace) {
+    // Show the clock and its subtitle.
     lv_obj_clear_flag(clockLabel_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(clockSubLabel_, LV_OBJ_FLAG_HIDDEN);
+    // Hide the working-phase activity list.
     for (uint8_t i = 0; i < kActivityLines; ++i) {
       lv_obj_add_flag(activityRows_[i], LV_OBJ_FLAG_HIDDEN);
+    }
+    // Hide the old ticker so it does not compete with the three-column layout.
+    if (statsLabel_ != nullptr) lv_obj_add_flag(statsLabel_, LV_OBJ_FLAG_HIDDEN);
+    // Show the three-column stat rows.
+    for (int i = 0; i < 4; ++i) {
+      lv_obj_clear_flag(idleColLeft_[i], LV_OBJ_FLAG_HIDDEN);
+      lv_obj_clear_flag(idleColRight_[i], LV_OBJ_FLAG_HIDDEN);
     }
   } else {
     lv_obj_add_flag(clockLabel_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(clockSubLabel_, LV_OBJ_FLAG_HIDDEN);
+    for (int i = 0; i < 4; ++i) {
+      lv_obj_add_flag(idleColLeft_[i], LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(idleColRight_[i], LV_OBJ_FLAG_HIDDEN);
+    }
   }
 
   // The clock face carries a one-line summary of the day beside the time.
@@ -376,6 +423,33 @@ void DialUi::setState(const JsonDocument& doc) {
     lv_label_set_text(clockSubLabel_, strlen(sub) > 0 ? sub
                       : (newPhase == DialPhase::Offline ? "正在重连"
                                                         : "空闲中"));
+  }
+
+  // Populate the three-column stat rows from the structured `s` object.
+  if (idleFace) {
+    const char* leftKeys[] = { "turns", "steps", "llm", "tool" };
+    const char* leftNames[] = { "轮次", "步数", "LLM", "工具" };
+    const char* rightKeys[] = { "ttft", "tps", "cache", "inp" };
+    const char* rightNames[] = { "首token", "速度", "缓存", "输入" };
+    JsonObjectConst s = doc["s"].as<JsonObjectConst>();
+    for (int i = 0; i < 4; ++i) {
+      const char* v = s.isNull() ? "" : (s[leftKeys[i]] | "");
+      char buf[60];
+      if (strlen(v) > 0) {
+        snprintf(buf, sizeof(buf), "%s\n#5d6478 %s#", v, leftNames[i]);
+      } else {
+        snprintf(buf, sizeof(buf), "#5d6478 %s#", leftNames[i]);
+      }
+      lv_label_set_text(idleColLeft_[i], buf);
+
+      const char* vr = s.isNull() ? "" : (s[rightKeys[i]] | "");
+      if (strlen(vr) > 0) {
+        snprintf(buf, sizeof(buf), "%s\n#5d6478 %s#", vr, rightNames[i]);
+      } else {
+        snprintf(buf, sizeof(buf), "#5d6478 %s#", rightNames[i]);
+      }
+      lv_label_set_text(idleColRight_[i], buf);
+    }
   }
 
   setActivity(doc);
@@ -427,15 +501,11 @@ void DialUi::setActivity(const JsonDocument& doc) {
  * against a circle that fits about 20.
  */
 void DialUi::setStats(const JsonDocument& doc) {
-  if (statsLabel_ == nullptr) return;
-  const char* stats = doc["stats"] | "";
-  const bool show = (phase_ == DialPhase::Idle) && strlen(stats) > 0;
-  if (show) {
-    lv_label_set_text(statsLabel_, stats);
-    lv_obj_clear_flag(statsLabel_, LV_OBJ_FLAG_HIDDEN);
-  } else {
-    lv_obj_add_flag(statsLabel_, LV_OBJ_FLAG_HIDDEN);
-  }
+  // The old scrolling ticker is superseded by the three-column stat grid.
+  // It stays hidden under all conditions; the method remains called from
+  // setState for compatibility but has nothing left to render.
+  if (statsLabel_ != nullptr) lv_obj_add_flag(statsLabel_, LV_OBJ_FLAG_HIDDEN);
+  (void)doc;
 }
 
 /**
@@ -750,6 +820,10 @@ void DialUi::setConnecting(const char* message) {
     if (activityRows_[i] != nullptr) {
       lv_obj_add_flag(activityRows_[i], LV_OBJ_FLAG_HIDDEN);
     }
+  }
+  for (int i = 0; i < 4; ++i) {
+    if (idleColLeft_[i] != nullptr) lv_obj_add_flag(idleColLeft_[i], LV_OBJ_FLAG_HIDDEN);
+    if (idleColRight_[i] != nullptr) lv_obj_add_flag(idleColRight_[i], LV_OBJ_FLAG_HIDDEN);
   }
   // The footer stays: link state and battery are exactly what matters now.
   updateArc(0);

@@ -171,7 +171,11 @@ class DialUi {
   lv_obj_t* footerIcon_ = nullptr;   // LVGL symbol (Montserrat)
   lv_obj_t* footerText_ = nullptr;   // "已连接" / "离线" (SIMSUN)
   lv_obj_t* footerRight_ = nullptr;  // battery — SIMSUN, ASCII only
-  lv_obj_t* statsLabel_ = nullptr;   // idle statistics ticker (SIMSUN)
+  // Idle face: three-column layout — 4 stat rows left, clock centre, 4 right.
+  // Each stat is one label with recolor: "值\n#5d6478 名#" (value white, name gray).
+  lv_obj_t* idleColLeft_[4] = {nullptr};
+  lv_obj_t* idleColRight_[4] = {nullptr};
+  lv_obj_t* statsLabel_ = nullptr;   // old ticker, hidden during idle
 
   // Ask overlay
   lv_obj_t* askBg_ = nullptr;        // yellow overlay
