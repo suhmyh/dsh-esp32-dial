@@ -355,10 +355,6 @@ void DialUi::backgroundLongPressed(lv_event_t* /*event*/) {
   dialUi.onBackgroundLongPress();
 }
 
-void DialUi::backgroundLongPressed(lv_event_t* /*event*/) {
-  dialUi.onBackgroundLongPress();
-}
-
 /** Resolve a button index to its option id and record it. */
 void DialUi::onAskButton(uint8_t index) {
   if (!waiting_ || index >= activeAsk_.optionCount) return;

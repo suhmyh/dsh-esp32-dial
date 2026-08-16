@@ -146,7 +146,6 @@ class DialUi {
   lv_obj_t* askBody_ = nullptr;      // ask detail
   lv_obj_t* askBtnAllow_ = nullptr;
   lv_obj_t* askBtnDeny_ = nullptr;
-  uint8_t askBtnCount_ = 2;
 
   // Provisioning screen
   lv_obj_t* provBg_ = nullptr;
@@ -172,7 +171,6 @@ class DialUi {
   void buildMainScreen();
   void buildAskOverlay();
   void buildProvisioningScreen();
-  void updatePhaseDisplay();
   void updateArc(uint8_t ctxPercent);
   void setPhaseLabel(DialPhase phase);
   void onAskButton(uint8_t index);
