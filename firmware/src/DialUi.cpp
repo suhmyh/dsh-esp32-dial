@@ -260,18 +260,6 @@ void DialUi::buildMainScreen() {
   lv_label_set_text(detailLabel_, "");
 
   // ── idle statistics ticker ──────────────────────────────────────────────
-  // The counters DSH keeps are far wider than the circle, so the line scrolls.
-  // It lives above the footer and only while idle, where nothing competes.
-  statsLabel_ = lv_label_create(scr);
-  lv_obj_align(statsLabel_, LV_ALIGN_BOTTOM_MID, 0, -34);
-  lv_obj_set_style_text_font(statsLabel_, &dsh_font_cjk_16, 0);
-  lv_obj_set_style_text_color(statsLabel_, kGray, 0);
-  lv_label_set_long_mode(statsLabel_, LV_LABEL_LONG_SCROLL_CIRCULAR);
-  lv_obj_set_width(statsLabel_, 230);
-  lv_obj_set_style_text_align(statsLabel_, LV_TEXT_ALIGN_CENTER, 0);
-  lv_label_set_text(statsLabel_, "");
-  lv_obj_add_flag(statsLabel_, LV_OBJ_FLAG_HIDDEN);
-
   // ── always-on footer ────────────────────────────────────────────────────
   // Link state and battery stay visible in every phase: when the dial says
   // nothing is happening, the footer is what proves it still knows.
@@ -441,9 +429,7 @@ void DialUi::setState(const JsonDocument& doc) {
     for (uint8_t i = 0; i < kActivityLines; ++i) {
       lv_obj_add_flag(activityRows_[i], LV_OBJ_FLAG_HIDDEN);
     }
-    // Hide the old ticker so it does not compete with the three-column layout.
-    if (statsLabel_ != nullptr) lv_obj_add_flag(statsLabel_, LV_OBJ_FLAG_HIDDEN);
-    // Show the three-column stat rows (names + values).
+    // The old ticker is gone — three-column grid replaces it.
     for (int i = 0; i < 4; ++i) {
       lv_obj_clear_flag(idleColLeft_[i], LV_OBJ_FLAG_HIDDEN);
       lv_obj_clear_flag(idleColRight_[i], LV_OBJ_FLAG_HIDDEN);
@@ -552,10 +538,8 @@ void DialUi::setActivity(const JsonDocument& doc) {
  * against a circle that fits about 20.
  */
 void DialUi::setStats(const JsonDocument& doc) {
-  // The old scrolling ticker is superseded by the three-column stat grid.
-  // It stays hidden under all conditions; the method remains called from
-  // setState for compatibility but has nothing left to render.
-  if (statsLabel_ != nullptr) lv_obj_add_flag(statsLabel_, LV_OBJ_FLAG_HIDDEN);
+  // The old scrolling ticker is gone — the three-column stat grid in
+  // setState replaced it. This method remains for call-site compatibility.
   (void)doc;
 }
 
@@ -883,7 +867,6 @@ void DialUi::setConnecting(const char* message) {
   // Hide the session widgets: they have no data yet.
   if (clockLabel_ != nullptr) lv_obj_add_flag(clockLabel_, LV_OBJ_FLAG_HIDDEN);
   if (clockSubLabel_ != nullptr) lv_obj_add_flag(clockSubLabel_, LV_OBJ_FLAG_HIDDEN);
-  if (statsLabel_ != nullptr) lv_obj_add_flag(statsLabel_, LV_OBJ_FLAG_HIDDEN);
   for (int i = 0; i < kActivityLines; ++i) {
     if (activityRows_[i] != nullptr) {
       lv_obj_add_flag(activityRows_[i], LV_OBJ_FLAG_HIDDEN);

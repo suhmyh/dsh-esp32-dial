@@ -179,7 +179,6 @@ class DialUi {
   lv_obj_t* idleColRight_[4] = {nullptr};  // value text, left-aligned
   lv_obj_t* idleNameLeft_[4] = {nullptr};  // name text, right-aligned, gray
   lv_obj_t* idleNameRight_[4] = {nullptr}; // name text, left-aligned, gray
-  lv_obj_t* statsLabel_ = nullptr;   // old ticker, hidden during idle
 
   // Ask overlay
   lv_obj_t* askBg_ = nullptr;        // yellow overlay
