@@ -22,6 +22,7 @@
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
   code,kbd{background:#0a0e16;border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
   #log{background:#080b12;border:1px solid var(--line);border-radius:8px;padding:12px;height:260px;overflow-y:auto;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;color:#9fb3c8}
+  #serialLog{background:#080b12;border:1px solid var(--line);border-radius:8px;padding:12px;height:220px;overflow-y:auto;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;color:#8fd8a0;margin-top:10px}
   #log .e{color:var(--red)}
   #log .s{color:var(--green)}
   #log .w{color:var(--yellow)}
@@ -73,6 +74,19 @@
   </div>
   <div class="bar"><div id="prog"></div></div>
   <div id="stat" class="meta">等待固件</div>
+</div>
+
+<div class="card">
+  <h2><span class="n">4</span>看板子说什么（排查用）</h2>
+  <p class="meta">
+    烧录完屏幕没反应？点这里读板子的串口输出，它会自报每一步初始化结果。
+    先拔插一次 USB 让板子重新上电，再点开始监视。
+  </p>
+  <div class="row">
+    <button id="btnMonitor" class="ghost">开始监视串口</button>
+    <button id="btnMonitorStop" class="ghost" disabled>停止</button>
+  </div>
+  <div id="serialLog"></div>
 </div>
 
 <div class="card">
@@ -261,6 +275,64 @@ el('btnErase').addEventListener('click', () => withLoader(async loader => {
   log('擦除完成，现在可以烧录', 's');
   el('stat').textContent = '已擦除 — 点"连接并烧录"';
 }));
+
+// ── serial monitor (read-only) ───────────────────────────────────────────
+// A live serial log helps diagnose a blank screen, a boot loop, or a
+// misconfigured board without installing a separate terminal.
+
+const serialLog = el('serialLog');
+let serialReader = null;
+let serialPort = null;
+
+el('btnMonitor').addEventListener('click', async () => {
+  try {
+    serialPort = await navigator.serial.requestPort({});
+    await serialPort.open({ baudRate: 115200 });
+    el('btnMonitor').disabled = true;
+    el('btnMonitorStop').disabled = false;
+    serialLog.textContent = '';
+    serialLog.className = 'log';
+
+    const decoder = new TextDecoder();
+    let buf = '';
+    serialReader = (async () => {
+      try {
+        while (serialPort.readable) {
+          const reader = serialPort.readable.getReader();
+          try {
+            while (true) {
+              const { value, done } = await reader.read();
+              if (done) break;
+              buf += decoder.decode(value, { stream: true });
+              // Keep a rolling window of the last 200 lines.
+              const lines = buf.split('\n');
+              if (lines.length > 200) lines.splice(0, lines.length - 200);
+              serialLog.textContent = lines.join('\n');
+              serialLog.scrollTop = serialLog.scrollHeight;
+            }
+          } finally {
+            reader.releaseLock();
+          }
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') serialLog.textContent += `\n[串口错误] ${err.message}`;
+      }
+    })();
+  } catch (err) {
+    if (err.name !== 'NotFoundError') serialLog.textContent = `[串口错误] ${err.message}`;
+  }
+});
+
+el('btnMonitorStop').addEventListener('click', async () => {
+  el('btnMonitorStop').disabled = true;
+  try {
+    serialReader?.catch(() => {});       // let the reader loop exit
+    await serialPort?.close();
+  } catch { /* already closed */ }
+  serialPort = null;
+  serialReader = null;
+  el('btnMonitor').disabled = false;
+});
 
 log('就绪。先选固件，再点烧录。');
 </script>
