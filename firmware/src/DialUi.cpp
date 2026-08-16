@@ -112,8 +112,18 @@ void DialUi::buildMainScreen() {
   lv_arc_set_mode(arc_, LV_ARC_MODE_NORMAL);
   lv_arc_set_range(arc_, 0, 100);
   lv_arc_set_value(arc_, 0);
-  lv_arc_set_bg_angles(arc_, 270, 630);  // full circle, gap at 3 o'clock
-  lv_arc_set_angles(arc_, 270, 270);     // indicator starts at 12 o'clock, empty
+  // The end angle must be written as 269, not 630. LVGL normalises anything
+  // above 360 (`while (end > 360) end -= 360`), so 630 lands back on 270 and the
+  // background span collapses to zero width. value_update() then maps the
+  // percentage onto that empty span — lv_map(v, 0, 100, 270, 270) is always 270
+  // — and the indicator sits frozen at its origin no matter what arrives.
+  //
+  // An end angle *below* the start is the documented way to express a wrap: LVGL
+  // adds 360 internally (`if (bg_angle_end < bg_angle_start) bg_end += 360`), so
+  // 270 → 269 becomes a 359° sweep clockwise from 12 o'clock, which is the full
+  // ring we want with a 1° seam at the top.
+  lv_arc_set_bg_angles(arc_, 270, 269);
+  lv_arc_set_angles(arc_, 270, 270);  // empty indicator; set_value drives it
   lv_obj_set_style_arc_width(arc_, 8, 0);
   lv_obj_set_style_arc_color(arc_, kGray, LV_PART_INDICATOR);
   lv_obj_set_style_arc_opa(arc_, 80, LV_PART_INDICATOR);
