@@ -52,7 +52,7 @@ const lv_img_dsc_t whaleIcon = {
         .reserved = 0,
         .w = 16,
         .h = 16,
-        .cf = LV_IMG_CF_TRUE_COLOR_CHROMA_KEYED,
+        .cf = LV_IMG_CF_TRUE_COLOR,
     },
     .data_size = sizeof(whale_pixels),
     .data = (const uint8_t*)whale_pixels,
