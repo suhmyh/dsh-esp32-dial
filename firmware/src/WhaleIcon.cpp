@@ -48,11 +48,11 @@ static const uint16_t whale_pixels[16 * 16] = {
 
 const lv_img_dsc_t whaleIcon = {
     .header = {
+        .cf = LV_IMG_CF_TRUE_COLOR,
         .always_zero = 0,
         .reserved = 0,
         .w = 16,
         .h = 16,
-        .cf = LV_IMG_CF_TRUE_COLOR,
     },
     .data_size = sizeof(whale_pixels),
     .data = (const uint8_t*)whale_pixels,
