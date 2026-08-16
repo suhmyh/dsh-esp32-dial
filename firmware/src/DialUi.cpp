@@ -309,7 +309,7 @@ void DialUi::buildAskOverlay() {
   lv_obj_set_style_radius(askBg_, 180, 0);
   lv_obj_set_style_border_width(askBg_, 0, 0);
   lv_obj_set_style_bg_color(askBg_, kYellow, 0);
-  lv_obj_set_style_bg_opa(askBg_, 240, 0);
+  lv_obj_set_style_bg_opa(askBg_, 255, 0);
   lv_obj_add_flag(askBg_, LV_OBJ_FLAG_HIDDEN);
 
   askTitle_ = lv_label_create(askBg_);
