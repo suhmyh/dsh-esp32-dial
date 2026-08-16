@@ -8,6 +8,7 @@
 #include "esp_lcd_st77916.h"
 
 #include "esp_lcd_panel_io_interface.h"
+#include "LvglPort.h"   // lvglOnDmaDone — DMA-done callback for spi flush
 #include "esp_lcd_panel_ops.h"
 
 #define LCD_OPCODE_WRITE_CMD        (0x02ULL)
@@ -450,6 +451,7 @@ static void test_draw_bitmap(esp_lcd_panel_handle_t panel_handle)
 }
 
 esp_lcd_panel_handle_t panel_handle = NULL;
+esp_lcd_panel_io_handle_t io_handle = NULL;
 int QSPI_Init(void){
   static const spi_bus_config_t host_config = {            
     .data0_io_num = ESP_PANEL_LCD_SPI_IO_DATA0,                    
@@ -486,7 +488,7 @@ int QSPI_Init(void){
     .spi_mode = ESP_PANEL_LCD_SPI_MODE,                      
     .pclk_hz = 5 * 1000 * 1000,       
     .trans_queue_depth = ESP_PANEL_LCD_SPI_TRANS_QUEUE_SZ,            
-    .on_color_trans_done = NULL,                            
+    .on_color_trans_done = lvglOnDmaDone,
     .user_ctx = NULL,                   
     .lcd_cmd_bits = ESP_PANEL_LCD_SPI_CMD_BITS,                 
     .lcd_param_bits = ESP_PANEL_LCD_SPI_PARAM_BITS,                
@@ -499,7 +501,6 @@ int QSPI_Init(void){
       .cs_high_active = 0,            
     },                                  
   };
-  esp_lcd_panel_io_handle_t io_handle = NULL;
   if(esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)ESP_PANEL_HOST_SPI_ID_DEFAULT, &io_config, &io_handle) != ESP_OK){
     printf("Failed to set LCD communication parameters -- SPI\r\n");
     return 0;
@@ -577,14 +578,8 @@ void ST77916_Init() {
 }
 
 void LCD_addWindow(uint16_t Xstart, uint16_t Ystart, uint16_t Xend, uint16_t Yend,uint16_t* color)
-{ 
-  uint32_t size = (Xend - Xstart +1 ) * (Yend - Ystart + 1);
-  for (size_t i = 0; i < size; i++) {
-    color[i] = (((color[i] >> 8) & 0xFF) | ((color[i] << 8) & 0xFF00));
-  }
-  // for (size_t i = 0; i < size; i++) {
-  //   color[i] = 0xFFFF;
-  // }
+{
+  // Byte swap is handled by LV_COLOR_16_SWAP; the buffer arrives in MSB-first order.
   Xend = Xend + 1;      // esp_lcd_panel_draw_bitmap: x_end End index on x-axis (x_end not included)
   Yend = Yend + 1;      // esp_lcd_panel_draw_bitmap: y_end End index on y-axis (y_end not included)
   if (Xend > EXAMPLE_LCD_WIDTH)

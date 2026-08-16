@@ -1,5 +1,11 @@
 #pragma once
 #include "Touch_CST816.h"
+#include "esp_lcd_panel_io.h"
+
+// Exposed so LvglPort can wire the DMA-done callback that tells LVGL a flush
+// is truly finished — calling lv_disp_flush_ready before the SPI transaction
+// completes causes buffer reuse artefacts (ghost/burn-in on text).
+extern esp_lcd_panel_io_handle_t io_handle;
 
 #define LCD_Backlight_PIN   5
 #define PWM_Channel     1       // PWM Channel   

@@ -190,7 +190,7 @@ void DialUi::buildMainScreen() {
     lv_obj_set_width(idleColLeft_[i], 106);
     lv_obj_set_style_text_font(idleColLeft_[i], &dsh_font_cjk_16, 0);
     lv_obj_set_style_text_color(idleColLeft_[i], kWhite, 0);
-    lv_obj_set_style_bg_color(idleColLeft_[i], kDarkBg, 0);
+    lv_obj_set_style_bg_color(idleColLeft_[i], kDim, 0);
     lv_obj_set_style_bg_opa(idleColLeft_[i], LV_OPA_COVER, 0);
     lv_label_set_long_mode(idleColLeft_[i], LV_LABEL_LONG_DOT);
     lv_obj_set_style_text_align(idleColLeft_[i], LV_TEXT_ALIGN_RIGHT, 0);
@@ -202,7 +202,7 @@ void DialUi::buildMainScreen() {
     lv_obj_set_width(idleColRight_[i], 106);
     lv_obj_set_style_text_font(idleColRight_[i], &dsh_font_cjk_16, 0);
     lv_obj_set_style_text_color(idleColRight_[i], kWhite, 0);
-    lv_obj_set_style_bg_color(idleColRight_[i], kDarkBg, 0);
+    lv_obj_set_style_bg_color(idleColRight_[i], kDim, 0);
     lv_obj_set_style_bg_opa(idleColRight_[i], LV_OPA_COVER, 0);
     lv_label_set_long_mode(idleColRight_[i], LV_LABEL_LONG_DOT);
     lv_obj_set_style_text_align(idleColRight_[i], LV_TEXT_ALIGN_LEFT, 0);
@@ -220,7 +220,7 @@ void DialUi::buildMainScreen() {
     lv_obj_set_width(idleNameLeft_[i], 106);
     lv_obj_set_style_text_font(idleNameLeft_[i], &dsh_font_cjk_16, 0);
     lv_obj_set_style_text_color(idleNameLeft_[i], kGray, 0);
-    lv_obj_set_style_bg_color(idleNameLeft_[i], kDarkBg, 0);
+    lv_obj_set_style_bg_color(idleNameLeft_[i], kDim, 0);
     lv_obj_set_style_bg_opa(idleNameLeft_[i], LV_OPA_COVER, 0);
     lv_label_set_long_mode(idleNameLeft_[i], LV_LABEL_LONG_DOT);
     lv_obj_set_style_text_align(idleNameLeft_[i], LV_TEXT_ALIGN_RIGHT, 0);
@@ -233,7 +233,7 @@ void DialUi::buildMainScreen() {
     lv_obj_set_width(idleNameRight_[i], 106);
     lv_obj_set_style_text_font(idleNameRight_[i], &dsh_font_cjk_16, 0);
     lv_obj_set_style_text_color(idleNameRight_[i], kGray, 0);
-    lv_obj_set_style_bg_color(idleNameRight_[i], kDarkBg, 0);
+    lv_obj_set_style_bg_color(idleNameRight_[i], kDim, 0);
     lv_obj_set_style_bg_opa(idleNameRight_[i], LV_OPA_COVER, 0);
     lv_label_set_long_mode(idleNameRight_[i], LV_LABEL_LONG_DOT);
     lv_obj_set_style_text_align(idleNameRight_[i], LV_TEXT_ALIGN_LEFT, 0);

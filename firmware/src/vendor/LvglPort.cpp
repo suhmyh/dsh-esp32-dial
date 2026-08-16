@@ -8,6 +8,18 @@
 #include "Display_ST77916.h"
 #include "Touch_CST816.h"
 
+// ── DMA-done callback ──────────────────────────────────────────────────────
+// The SPI transaction completes asynchronously. If lv_disp_flush_ready is
+// called before the DMA transfer finishes, LVGL reuses the draw buffer while
+// the hardware is still reading it — producing ghost/burn-in on text.
+// This callback is wired into io_config.on_color_trans_done by QSPI_Init.
+lv_disp_drv_t* g_lvglDriver = nullptr;
+
+bool IRAM_ATTR lvglOnDmaDone(esp_lcd_panel_io_handle_t, esp_lcd_panel_io_event_data_t*, void*) {
+  if (g_lvglDriver != nullptr) lv_disp_flush_ready(g_lvglDriver);
+  return false;
+}
+
 namespace {
 
 constexpr uint32_t kTickMs = 5;
@@ -21,7 +33,8 @@ void flushDisplay(lv_disp_drv_t* driver, const lv_area_t* area,
                   lv_color_t* colors) {
   LCD_addWindow(area->x1, area->y1, area->x2, area->y2,
                 reinterpret_cast<uint16_t*>(&colors->full));
-  lv_disp_flush_ready(driver);
+  // lv_disp_flush_ready is called from lvglOnDmaDone when the SPI transfer
+  // completes. Do NOT call it here.
 }
 
 void readTouch(lv_indev_drv_t*, lv_indev_data_t* data) {
@@ -62,6 +75,7 @@ void LvglPort_Init() {
   displayDriver.flush_cb = flushDisplay;
   displayDriver.draw_buf = &drawBuffer;
   lv_disp_drv_register(&displayDriver);
+  g_lvglDriver = &displayDriver;
 
   static lv_indev_drv_t touchDriver;
   lv_indev_drv_init(&touchDriver);
@@ -82,4 +96,3 @@ void LvglPort_Init() {
 }
 
 void LvglPort_Loop() { lv_timer_handler(); }
-
