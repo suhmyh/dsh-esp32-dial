@@ -112,31 +112,96 @@ void DialUi::buildMainScreen() {
   lv_obj_set_style_arc_opa(arc_, 30, LV_PART_MAIN);
   lv_obj_clear_flag(arc_, LV_OBJ_FLAG_CLICKABLE);
 
-  // Phase word — large, centred. It sits inside the ring.
+  // Phase icon — deliberately small. A 48px glyph filled the circle and left no
+  // room for the information a status dial exists to show; at 20px it reads as
+  // an indicator beside the title instead of competing with it.
   phaseLabel_ = lv_label_create(scr);
-  lv_obj_set_pos(phaseLabel_, 180, 140);
-  lv_obj_set_style_text_font(phaseLabel_, &lv_font_montserrat_48, 0);
+  lv_obj_align(phaseLabel_, LV_ALIGN_TOP_MID, 0, 62);
+  lv_obj_set_style_text_font(phaseLabel_, &lv_font_montserrat_20, 0);
   lv_obj_set_style_text_color(phaseLabel_, kWhite, 0);
   lv_label_set_text(phaseLabel_, LV_SYMBOL_MINUS);
-  lv_obj_center(phaseLabel_);
 
-  // Title — session title, below the phase word.
+  // Title — session title, under the icon.
   titleLabel_ = lv_label_create(scr);
-  lv_obj_align(titleLabel_, LV_ALIGN_TOP_MID, 0, 48);
+  lv_obj_align(titleLabel_, LV_ALIGN_TOP_MID, 0, 88);
   lv_obj_set_style_text_font(titleLabel_, &lv_font_simsun_16_cjk, 0);
   lv_obj_set_style_text_color(titleLabel_, kWhite, 0);
   lv_label_set_long_mode(titleLabel_, LV_LABEL_LONG_SCROLL_CIRCULAR);
-  lv_obj_set_width(titleLabel_, 280);
+  lv_obj_set_width(titleLabel_, 250);
+  lv_obj_set_style_text_align(titleLabel_, LV_TEXT_ALIGN_CENTER, 0);
   lv_label_set_text(titleLabel_, "");
 
-  // Detail — current action, bottom.
+  // ── idle face ──────────────────────────────────────────────────────────
+  // A desk device that is not working should still be worth looking at, so the
+  // idle phase is a clock. Both labels hide themselves the moment work starts.
+  clockLabel_ = lv_label_create(scr);
+  lv_obj_align(clockLabel_, LV_ALIGN_CENTER, 0, -34);
+  lv_obj_set_style_text_font(clockLabel_, &lv_font_montserrat_48, 0);
+  lv_obj_set_style_text_color(clockLabel_, kWhite, 0);
+  lv_label_set_text(clockLabel_, "--:--");
+  lv_obj_add_flag(clockLabel_, LV_OBJ_FLAG_HIDDEN);
+
+  clockSubLabel_ = lv_label_create(scr);
+  lv_obj_align(clockSubLabel_, LV_ALIGN_CENTER, 0, 2);
+  lv_obj_set_style_text_font(clockSubLabel_, &lv_font_simsun_16_cjk, 0);
+  lv_obj_set_style_text_color(clockSubLabel_, kGray, 0);
+  lv_label_set_text(clockSubLabel_, "");
+  lv_obj_add_flag(clockSubLabel_, LV_OBJ_FLAG_HIDDEN);
+
+  // ── working face: the tool-call activity list ───────────────────────────
+  // Three rows, stacked centre-out. The running row is opaque and the finished
+  // ones fade, so the eye lands on what is happening now without reading.
+  for (uint8_t i = 0; i < kActivityLines; ++i) {
+    activityRows_[i] = lv_label_create(scr);
+    lv_obj_align(activityRows_[i], LV_ALIGN_CENTER, 0,
+                 static_cast<lv_coord_t>(-16 + i * 24));
+    lv_obj_set_style_text_font(activityRows_[i], &lv_font_simsun_16_cjk, 0);
+    lv_obj_set_style_text_color(activityRows_[i], kWhite, 0);
+    lv_obj_set_style_text_align(activityRows_[i], LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_long_mode(activityRows_[i], LV_LABEL_LONG_DOT);
+    lv_obj_set_width(activityRows_[i], 250);
+    lv_label_set_text(activityRows_[i], "");
+    lv_obj_add_flag(activityRows_[i], LV_OBJ_FLAG_HIDDEN);
+  }
+
+  // Detail — one line naming the current action, below the activity list.
   detailLabel_ = lv_label_create(scr);
-  lv_obj_align(detailLabel_, LV_ALIGN_BOTTOM_MID, 0, -24);
+  lv_obj_align(detailLabel_, LV_ALIGN_CENTER, 0, 62);
   lv_obj_set_style_text_font(detailLabel_, &lv_font_simsun_16_cjk, 0);
   lv_obj_set_style_text_color(detailLabel_, kGray, 0);
   lv_label_set_long_mode(detailLabel_, LV_LABEL_LONG_SCROLL_CIRCULAR);
-  lv_obj_set_width(detailLabel_, 300);
+  lv_obj_set_width(detailLabel_, 250);
+  lv_obj_set_style_text_align(detailLabel_, LV_TEXT_ALIGN_CENTER, 0);
   lv_label_set_text(detailLabel_, "");
+
+  // ── idle statistics ticker ──────────────────────────────────────────────
+  // The counters DSH keeps are far wider than the circle, so the line scrolls.
+  // It lives above the footer and only while idle, where nothing competes.
+  statsLabel_ = lv_label_create(scr);
+  lv_obj_align(statsLabel_, LV_ALIGN_BOTTOM_MID, 0, -34);
+  lv_obj_set_style_text_font(statsLabel_, &lv_font_simsun_16_cjk, 0);
+  lv_obj_set_style_text_color(statsLabel_, kGray, 0);
+  lv_label_set_long_mode(statsLabel_, LV_LABEL_LONG_SCROLL_CIRCULAR);
+  lv_obj_set_width(statsLabel_, 230);
+  lv_obj_set_style_text_align(statsLabel_, LV_TEXT_ALIGN_CENTER, 0);
+  lv_label_set_text(statsLabel_, "");
+  lv_obj_add_flag(statsLabel_, LV_OBJ_FLAG_HIDDEN);
+
+  // ── always-on footer ────────────────────────────────────────────────────
+  // Link state and battery stay visible in every phase: when the dial says
+  // nothing is happening, the footer is what proves it still knows.
+  // y=-14 keeps both inside the circle (the chord at that row is ~190px).
+  footerLeft_ = lv_label_create(scr);
+  lv_obj_align(footerLeft_, LV_ALIGN_BOTTOM_MID, -52, -14);
+  lv_obj_set_style_text_font(footerLeft_, &lv_font_simsun_16_cjk, 0);
+  lv_obj_set_style_text_color(footerLeft_, kGray, 0);
+  lv_label_set_text(footerLeft_, "");
+
+  footerRight_ = lv_label_create(scr);
+  lv_obj_align(footerRight_, LV_ALIGN_BOTTOM_MID, 52, -14);
+  lv_obj_set_style_text_font(footerRight_, &lv_font_simsun_16_cjk, 0);
+  lv_obj_set_style_text_color(footerRight_, kGray, 0);
+  lv_label_set_text(footerRight_, "");
 }
 
 // ── ask overlay ──────────────────────────────────────────────────────────
@@ -152,25 +217,34 @@ void DialUi::buildAskOverlay() {
   lv_obj_add_flag(askBg_, LV_OBJ_FLAG_HIDDEN);
 
   askTitle_ = lv_label_create(askBg_);
-  lv_obj_align(askTitle_, LV_ALIGN_TOP_MID, 0, 32);
+  lv_obj_align(askTitle_, LV_ALIGN_TOP_MID, 0, 28);
   lv_obj_set_style_text_font(askTitle_, &lv_font_simsun_16_cjk, 0);
   lv_obj_set_style_text_color(askTitle_, kDarkBg, 0);
   lv_label_set_long_mode(askTitle_, LV_LABEL_LONG_WRAP);
-  lv_obj_set_width(askTitle_, 300);
+  lv_obj_set_width(askTitle_, 280);
   lv_label_set_text(askTitle_, "");
 
   askBody_ = lv_label_create(askBg_);
-  lv_obj_align(askBody_, LV_ALIGN_TOP_MID, 0, 80);
+  lv_obj_align(askBody_, LV_ALIGN_TOP_MID, 0, 68);
   lv_obj_set_style_text_font(askBody_, &lv_font_simsun_16_cjk, 0);
   lv_obj_set_style_text_color(askBody_, LV_COLOR_MAKE(0x33, 0x33, 0x33), 0);
   lv_label_set_long_mode(askBody_, LV_LABEL_LONG_WRAP);
-  lv_obj_set_width(askBody_, 280);
+  lv_obj_set_width(askBody_, 260);
   lv_label_set_text(askBody_, "");
+
+  // Button row centred at y = 264 (chord = 322px). Two 130px buttons fit with
+  // a 20px gap (130+20+130=280 ≤ 322). A third button is hidden by default.
+  constexpr lv_coord_t kBtnY = 264;
+  constexpr lv_coord_t kBtnW = 130;
+  constexpr lv_coord_t kBtnH = 44;
+  constexpr lv_coord_t kGap = 20;
+  constexpr lv_coord_t kOffset = (kBtnW + kGap) / 2;  // 75
 
   // Allow button — left side
   askBtnAllow_ = lv_btn_create(askBg_);
-  lv_obj_set_size(askBtnAllow_, 120, 48);
-  lv_obj_align(askBtnAllow_, LV_ALIGN_BOTTOM_MID, -70, -24);
+  lv_obj_set_size(askBtnAllow_, kBtnW, kBtnH);
+  lv_obj_align(askBtnAllow_, LV_ALIGN_CENTER, -kOffset, kBtnY - 180);
+  lv_obj_set_style_radius(askBtnAllow_, 8, 0);
   lv_obj_set_style_bg_color(askBtnAllow_, kGreen, 0);
   lv_obj_add_event_cb(askBtnAllow_, DialUi::askButtonClicked, LV_EVENT_CLICKED,
                       reinterpret_cast<void*>(static_cast<uintptr_t>(0)));
@@ -181,8 +255,9 @@ void DialUi::buildAskOverlay() {
 
   // Deny button — right side
   askBtnDeny_ = lv_btn_create(askBg_);
-  lv_obj_set_size(askBtnDeny_, 120, 48);
-  lv_obj_align(askBtnDeny_, LV_ALIGN_BOTTOM_MID, 70, -24);
+  lv_obj_set_size(askBtnDeny_, kBtnW, kBtnH);
+  lv_obj_align(askBtnDeny_, LV_ALIGN_CENTER, kOffset, kBtnY - 180);
+  lv_obj_set_style_radius(askBtnDeny_, 8, 0);
   lv_obj_set_style_bg_color(askBtnDeny_, kRed, 0);
   lv_obj_add_event_cb(askBtnDeny_, DialUi::askButtonClicked, LV_EVENT_CLICKED,
                       reinterpret_cast<void*>(static_cast<uintptr_t>(1)));
@@ -190,6 +265,20 @@ void DialUi::buildAskOverlay() {
   lv_obj_set_style_text_font(lblDeny, &lv_font_simsun_16_cjk, 0);
   lv_label_set_text(lblDeny, "拒绝");
   lv_obj_center(lblDeny);
+
+  // Third option — centred below the pair, for three-option asks.
+  askBtnThird_ = lv_btn_create(askBg_);
+  lv_obj_set_size(askBtnThird_, kBtnW, kBtnH);
+  lv_obj_align(askBtnThird_, LV_ALIGN_CENTER, 0, kBtnY - 180 + kBtnH + 8);
+  lv_obj_set_style_radius(askBtnThird_, 8, 0);
+  lv_obj_set_style_bg_color(askBtnThird_, kGray, 0);
+  lv_obj_add_event_cb(askBtnThird_, DialUi::askButtonClicked, LV_EVENT_CLICKED,
+                      reinterpret_cast<void*>(static_cast<uintptr_t>(2)));
+  lv_obj_t* lblThird = lv_label_create(askBtnThird_);
+  lv_obj_set_style_text_font(lblThird, &lv_font_simsun_16_cjk, 0);
+  lv_label_set_text(lblThird, "");
+  lv_obj_center(lblThird);
+  lv_obj_add_flag(askBtnThird_, LV_OBJ_FLAG_HIDDEN);
 }
 
 // ── state update ─────────────────────────────────────────────────────────
@@ -231,6 +320,121 @@ void DialUi::setState(const JsonDocument& doc) {
   const char* title = doc["title"] | "";
   if (strlen(title) > 0) lv_label_set_text(titleLabel_, title);
   lv_label_set_text(detailLabel_, doc["detail"] | "");
+
+  // Each phase owns a different centre: idle is a clock, working is the list of
+  // what DSH is doing. Toggling visibility here keeps the two from overlapping.
+  const bool idleFace = (newPhase == DialPhase::Idle ||
+                         newPhase == DialPhase::Offline);
+  if (idleFace) {
+    lv_obj_clear_flag(clockLabel_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(clockSubLabel_, LV_OBJ_FLAG_HIDDEN);
+    for (uint8_t i = 0; i < kActivityLines; ++i) {
+      lv_obj_add_flag(activityRows_[i], LV_OBJ_FLAG_HIDDEN);
+    }
+  } else {
+    lv_obj_add_flag(clockLabel_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(clockSubLabel_, LV_OBJ_FLAG_HIDDEN);
+  }
+
+  // The clock face carries a one-line summary of the day beside the time.
+  if (idleFace) {
+    const char* clockText = doc["clock"] | "";
+    if (strlen(clockText) > 0) lv_label_set_text(clockLabel_, clockText);
+    const char* sub = doc["clockSub"] | "";
+    lv_label_set_text(clockSubLabel_, strlen(sub) > 0 ? sub
+                      : (newPhase == DialPhase::Offline ? "离线 · 正在重连"
+                                                        : "空闲中"));
+  }
+
+  setActivity(doc);
+  setStats(doc);
+  setFooter(doc);
+}
+
+/**
+ * Fill the working-phase activity list from the state frame's `acts` array.
+ *
+ * The bridge sends the newest tool calls oldest-first; the running one is drawn
+ * white and the finished ones grey, so the current step is findable without
+ * reading every row. An absent `acts` array leaves the rows blank rather than
+ * inventing content — a dial that guesses is worse than one that says nothing.
+ */
+void DialUi::setActivity(const JsonDocument& doc) {
+  const bool working = (phase_ == DialPhase::Working ||
+                        phase_ == DialPhase::Done ||
+                        phase_ == DialPhase::Error);
+  if (!working) return;
+
+  JsonArrayConst acts = doc["acts"].as<JsonArrayConst>();
+  uint8_t row = 0;
+  for (JsonObjectConst act : acts) {
+    if (row >= kActivityLines) break;
+    const char* text = act["t"] | "";
+    const bool running = act["r"] | false;
+    lv_label_set_text(activityRows_[row], text);
+    // The running row is the answer to "what is it doing right now", so it gets
+    // full contrast while completed rows recede.
+    lv_obj_set_style_text_color(activityRows_[row], running ? kWhite : kGray, 0);
+    lv_obj_clear_flag(activityRows_[row], LV_OBJ_FLAG_HIDDEN);
+    ++row;
+  }
+  // Any row the frame did not fill must be cleared, or a shorter list would
+  // leave stale lines from the previous frame on screen.
+  for (; row < kActivityLines; ++row) {
+    lv_label_set_text(activityRows_[row], "");
+    lv_obj_add_flag(activityRows_[row], LV_OBJ_FLAG_HIDDEN);
+  }
+}
+
+/**
+ * Show the session counters while idle.
+ *
+ * The bridge pre-formats this line because the numbers need unit conversion
+ * (ms→minutes, tokens→millions) that belongs with the data, not on a device
+ * whose job is to render. It scrolls because the full line is ~110 characters
+ * against a circle that fits about 20.
+ */
+void DialUi::setStats(const JsonDocument& doc) {
+  if (statsLabel_ == nullptr) return;
+  const char* stats = doc["stats"] | "";
+  const bool show = (phase_ == DialPhase::Idle) && strlen(stats) > 0;
+  if (show) {
+    lv_label_set_text(statsLabel_, stats);
+    lv_obj_clear_flag(statsLabel_, LV_OBJ_FLAG_HIDDEN);
+  } else {
+    lv_obj_add_flag(statsLabel_, LV_OBJ_FLAG_HIDDEN);
+  }
+}
+
+/**
+ * Draw the always-on footer: link state on the left, battery on the right.
+ *
+ * These two facts answer "is the dial still telling me the truth?", so they are
+ * the one part of the screen no phase is allowed to take over. Both use LVGL
+ * built-in symbols, which exist in every font build and cannot render as boxes.
+ */
+void DialUi::setFooter(const JsonDocument& doc) {
+  if (footerLeft_ == nullptr || footerRight_ == nullptr) return;
+
+  const bool linked = (phase_ != DialPhase::Offline);
+  // Stale data is a third state: the link is up but the numbers are old, and
+  // saying "connected" then would be a lie the user cannot detect.
+  const char* linkText = !linked ? LV_SYMBOL_CLOSE " 离线"
+                       : stale_  ? LV_SYMBOL_WARNING " 数据陈旧"
+                                 : LV_SYMBOL_WIFI " 已连接";
+  lv_label_set_text(footerLeft_, linkText);
+  lv_obj_set_style_text_color(footerLeft_,
+                              linked && !stale_ ? kGreen : kGray, 0);
+
+  const uint8_t battery = doc["battery"] | 0;
+  if (battery > 0) {
+    char buf[24];
+    snprintf(buf, sizeof(buf), LV_SYMBOL_BATTERY_FULL " %u%%", battery);
+    lv_label_set_text(footerRight_, buf);
+    lv_obj_set_style_text_color(footerRight_, battery < 20 ? kRed : kGray, 0);
+  } else {
+    lv_label_set_text(footerRight_, "");
+  }
 }
 
 void DialUi::updateArc(uint8_t ctxPercent) {
@@ -309,6 +513,8 @@ void DialUi::showAsk(const JsonDocument& doc) {
     if (lbl) lv_label_set_text(lbl, activeAsk_.options[0].label);
     lv_obj_set_style_bg_color(askBtnAllow_,
         activeAsk_.options[0].primary ? kGreen : kRed, 0);
+  } else {
+    lv_obj_add_flag(askBtnAllow_, LV_OBJ_FLAG_HIDDEN);
   }
   if (activeAsk_.optionCount >= 2) {
     lv_obj_clear_flag(askBtnDeny_, LV_OBJ_FLAG_HIDDEN);
@@ -316,9 +522,17 @@ void DialUi::showAsk(const JsonDocument& doc) {
     if (lbl) lv_label_set_text(lbl, activeAsk_.options[1].label);
     lv_obj_set_style_bg_color(askBtnDeny_,
         activeAsk_.options[1].primary ? kGreen : kRed, 0);
-  }
-  if (activeAsk_.optionCount < 2) {
+  } else {
     lv_obj_add_flag(askBtnDeny_, LV_OBJ_FLAG_HIDDEN);
+  }
+  if (activeAsk_.optionCount >= 3) {
+    lv_obj_clear_flag(askBtnThird_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_t* lbl = lv_obj_get_child(askBtnThird_, 0);
+    if (lbl) lv_label_set_text(lbl, activeAsk_.options[2].label);
+    lv_obj_set_style_bg_color(askBtnThird_,
+        activeAsk_.options[2].primary ? kGreen : kRed, 0);
+  } else {
+    lv_obj_add_flag(askBtnThird_, LV_OBJ_FLAG_HIDDEN);
   }
 
   lv_obj_clear_flag(askBg_, LV_OBJ_FLAG_HIDDEN);

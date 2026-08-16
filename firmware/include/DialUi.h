@@ -46,6 +46,22 @@ struct Ask {
   unsigned long expiresAt;  // ms timestamp
 };
 
+/**
+ * One line of the working-phase activity list.
+ *
+ * The dial shows what DSH is *doing*, not just that it is busy: a tool call
+ * naming a real file or command is the difference between a progress spinner and
+ * a status display. Three lines is what the circle fits without shrinking the
+ * text past reading size at arm's length.
+ */
+struct ActivityLine {
+  char text[44];
+  bool running;  // true = happening now (highlighted), false = finished
+};
+
+/** How many activity lines the working phase keeps on screen. */
+constexpr uint8_t kActivityLines = 3;
+
 class DialUi {
  public:
   DialUi();
@@ -135,10 +151,22 @@ class DialUi {
  private:
   // LVGL objects
   lv_obj_t* arc_ = nullptr;          // context pressure ring
-  lv_obj_t* phaseLabel_ = nullptr;   // one-word phase (large, centre)
+  lv_obj_t* phaseLabel_ = nullptr;   // phase icon (small, above the title)
   lv_obj_t* titleLabel_ = nullptr;   // session title
   lv_obj_t* detailLabel_ = nullptr;  // current action
   lv_obj_t* statusBg_ = nullptr;     // phase-colour background circle
+
+  // Idle face: a desk device is a clock whenever it is not working.
+  lv_obj_t* clockLabel_ = nullptr;   // HH:MM, idle only
+  lv_obj_t* clockSubLabel_ = nullptr;
+
+  // Working face: the tool-call activity list.
+  lv_obj_t* activityRows_[kActivityLines] = {nullptr};
+
+  // Always-on footer: link, signal, battery — device health at a glance.
+  lv_obj_t* footerLeft_ = nullptr;   // link dot + label
+  lv_obj_t* footerRight_ = nullptr;  // battery
+  lv_obj_t* statsLabel_ = nullptr;   // idle statistics ticker
 
   // Ask overlay
   lv_obj_t* askBg_ = nullptr;        // yellow overlay
@@ -146,6 +174,7 @@ class DialUi {
   lv_obj_t* askBody_ = nullptr;      // ask detail
   lv_obj_t* askBtnAllow_ = nullptr;
   lv_obj_t* askBtnDeny_ = nullptr;
+  lv_obj_t* askBtnThird_ = nullptr;  // third option, when the ask has one
 
   // Provisioning screen
   lv_obj_t* provBg_ = nullptr;
@@ -173,6 +202,9 @@ class DialUi {
   void buildProvisioningScreen();
   void updateArc(uint8_t ctxPercent);
   void setPhaseLabel(DialPhase phase);
+  void setActivity(const JsonDocument& doc);   // working-phase tool-call list
+  void setStats(const JsonDocument& doc);      // idle-phase counters ticker
+  void setFooter(const JsonDocument& doc);     // link / signal / battery
   void onAskButton(uint8_t index);
   void onBackgroundLongPress();
 
