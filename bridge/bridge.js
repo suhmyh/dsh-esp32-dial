@@ -234,6 +234,18 @@ const liveFacts = {
 	 * Each entry is { id, name, arg, running }.
 	 */
 	tools: [],
+	/**
+	 * LLM generation state, tracked from assistant/chunk events so the dial
+	 * can distinguish "thinking" (waiting for the first token) from "streaming"
+	 * (text-deltas arriving) from "working" (a tool is executing).
+	 *
+	 *   stepStarted = a step/start arrived but no chunk yet → thinking
+	 *   streaming   = text-delta chunks are flowing → streaming
+	 *
+	 * Both reset on step/end so the next step re-enters thinking.
+	 */
+	stepStarted: false,
+	streaming: false,
 };
 
 /** How many activity rows the dial can draw. */
@@ -332,12 +344,18 @@ function deriveState(snapshot, previous) {
 	let phase;
 	if (pendingAsks.size > 0) phase = "waiting";
 	else if (nowRunning > 0) {
-		// A running session with no tool in flight means the LLM is generating
-		// (or waiting on the API). That is "thinking", distinct from executing
-		// a tool, so the dial can show it as its own phase.
+		// A running session with no tool in flight means the LLM is generating.
+		// assistant/chunk text-delta events tell us whether it is still thinking
+		// (waiting for the first token) or already streaming a reply.
 		const anyWorking = [...liveFacts.tools].some((t) => t.running === true)
 			|| liveFacts.jobs.some((j) => j.status === "running");
-		phase = anyWorking ? "working" : "thinking";
+		if (anyWorking) {
+			phase = "working";
+		} else if (liveFacts.streaming) {
+			phase = "streaming";
+		} else {
+			phase = "thinking";
+		}
 	}
 	else if (wasRunning && Date.now() - (previous?.stoppedAt ?? 0) < CONFIG.doneHoldMs) phase = "done";
 	else phase = "idle";
@@ -350,6 +368,7 @@ function deriveState(snapshot, previous) {
 	const runningTool = [...liveFacts.tools].reverse().find((t) => t.running === true);
 	const runningJob = liveFacts.jobs.find((j) => j.status === "running");
 	const detail = phase === "thinking" ? "思考中"
+		: phase === "streaming" ? "输出中"
 		: runningTool !== undefined ? runningTool.line
 		: runningJob !== undefined ? firstLine(runningJob.label, runningJob.kind)
 		: goal?.objective !== undefined ? String(goal.objective).slice(0, 60)
@@ -968,10 +987,32 @@ function watchDshEvents() {
 		// tool calls into liveFacts.tools for the working-screen activity list.
 		if (method === "session/event") {
 			const ev = payload?.event;
+			// ── LLM generation state ──────────────────────────────────────
+			// A step begins with no output: that gap is DSH waiting on the API,
+			// which the dial shows as 思考中. The first text-delta means tokens
+			// are arriving, which is 输出中. Without watching these the dial only
+			// ever saw tool/call and so sat on "working" for the whole turn.
+			if (ev?.type === "step/start") {
+				liveFacts.stepStarted = true;
+				liveFacts.streaming = false;
+			}
+			if (ev?.type === "step/end") {
+				liveFacts.stepStarted = false;
+				liveFacts.streaming = false;
+			}
+			if (ev?.type === "assistant/chunk") {
+				const chunk = ev.data?.chunk;
+				// Only text output counts as streaming. tool-call-deltas are the
+				// model composing a call, which the tool/call event reports better.
+				if (chunk?.type === "text-delta") liveFacts.streaming = true;
+				if (chunk?.type === "finish") liveFacts.streaming = false;
+			}
 			if (ev?.type === "tool/call") {
 				const name = ev.data?.name ?? "";
 				const callId = ev.data?.callId ?? "";
 				const line = toolLine(name, ev.data?.arguments);
+				// A tool taking over ends the generation phase.
+				liveFacts.streaming = false;
 				if (line && line !== "") {
 					liveFacts.tools.push({ callId, name, line, running: true });
 					if (liveFacts.tools.length > kActLimit * 3) {

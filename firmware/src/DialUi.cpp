@@ -34,6 +34,7 @@ static constexpr lv_color_t kGray = LV_COLOR_MAKE(0x55, 0x55, 0x55);
 static constexpr lv_color_t kWhite = LV_COLOR_MAKE(0xFF, 0xFF, 0xFF);
 static constexpr lv_color_t kDim = LV_COLOR_MAKE(0x22, 0x22, 0x33);
 static constexpr lv_color_t kPurple = LV_COLOR_MAKE(0x7C, 0x4D, 0xFF);  // thinking phase
+static constexpr lv_color_t kTeal = LV_COLOR_MAKE(0x00, 0xBF, 0xA5);    // streaming phase
 
 // ── static members ───────────────────────────────────────────────────────
 lv_style_t DialUi::mainStyle_;
@@ -54,6 +55,7 @@ lv_color_t DialUi::colorForPhase(DialPhase phase, bool stale) {
     case DialPhase::Idle:      return kDim;
     case DialPhase::Working:   return kBlue;
     case DialPhase::Thinking:  return kPurple;
+    case DialPhase::Streaming: return kTeal;
     case DialPhase::Waiting:   return kYellow;
     case DialPhase::Done:      return kGreen;
     case DialPhase::Error:     return kRed;
@@ -146,19 +148,22 @@ void DialUi::buildMainScreen() {
   // Phase icon — deliberately small. A 48px glyph filled the circle and left no
   // room for the information a status dial exists to show; at 20px it reads as
   // an indicator beside the title instead of competing with it.
+  //
+  // It sits right of centre so the 32px whale can sit left of centre and the
+  // pair reads as one centred unit.
   phaseLabel_ = lv_label_create(scr);
-  lv_obj_align(phaseLabel_, LV_ALIGN_TOP_MID, 0, 62);
+  lv_obj_align(phaseLabel_, LV_ALIGN_TOP_MID, 22, 64);
   lv_obj_set_style_text_font(phaseLabel_, &lv_font_montserrat_20, 0);
   lv_obj_set_style_text_color(phaseLabel_, kWhite, 0);
   lv_label_set_text(phaseLabel_, LV_SYMBOL_MINUS);
 
-  // Small DeepSeek whale icon, just left of the phase icon, both centered
-  // together at the top of the dial. Keeping it on-axis avoids the circular
-  // bezel clipping it (which happened at TOP_RIGHT on a 360px round screen).
+  // The DeepSeek whale, generated from the DSH web UI's own favicon.svg by
+  // tools/svg-to-lvgl-alpha.js. Left of the phase icon with a real gap, so the
+  // two never overlap; on-axis so the round bezel cannot clip it.
   whaleIcon_ = lv_img_create(scr);
   lv_img_set_src(whaleIcon_, &whaleIcon);
-  lv_obj_align_to(whaleIcon_, phaseLabel_, LV_ALIGN_OUT_LEFT_MID, 6, 0);
-  lv_obj_set_style_img_recolor(whaleIcon_, kWhite, 0);
+  lv_obj_align(whaleIcon_, LV_ALIGN_TOP_MID, -18, 58);
+  lv_obj_set_style_img_recolor(whaleIcon_, kBlue, 0);
   lv_obj_set_style_img_recolor_opa(whaleIcon_, LV_OPA_COVER, 0);
 
   // Title — session title, under the icon.
@@ -403,6 +408,7 @@ void DialUi::setState(const JsonDocument& doc) {
 
   if (strcmp(phaseStr, "working") == 0) newPhase = DialPhase::Working;
   else if (strcmp(phaseStr, "thinking") == 0) newPhase = DialPhase::Thinking;
+  else if (strcmp(phaseStr, "streaming") == 0) newPhase = DialPhase::Streaming;
   else if (strcmp(phaseStr, "waiting") == 0) newPhase = DialPhase::Waiting;
   else if (strcmp(phaseStr, "done") == 0) newPhase = DialPhase::Done;
   else if (strcmp(phaseStr, "error") == 0) newPhase = DialPhase::Error;
@@ -436,6 +442,7 @@ void DialUi::setState(const JsonDocument& doc) {
   // what DSH is doing. Toggling visibility here keeps the two from overlapping.
   const bool idleFace = (newPhase == DialPhase::Idle ||
                          newPhase == DialPhase::Thinking ||
+                         newPhase == DialPhase::Streaming ||
                          newPhase == DialPhase::Offline);
   if (idleFace) {
     // Show the clock and its subtitle.
@@ -475,6 +482,7 @@ void DialUi::setState(const JsonDocument& doc) {
     lv_label_set_text(clockSubLabel_, strlen(sub) > 0 ? sub
                       : (newPhase == DialPhase::Offline ? "正在重连"
                         : newPhase == DialPhase::Thinking ? "思考中"
+                        : newPhase == DialPhase::Streaming ? "输出中"
                                                           : "空闲中"));
   }
 
@@ -643,6 +651,7 @@ void DialUi::setPhaseLabel(DialPhase phase) {
     case DialPhase::Idle:      text = LV_SYMBOL_MINUS;    break;  // resting
     case DialPhase::Working:   text = LV_SYMBOL_REFRESH;  break;  // busy
     case DialPhase::Thinking:  text = LV_SYMBOL_EYE_OPEN;  break;  // LLM thinking
+    case DialPhase::Streaming: text = LV_SYMBOL_KEYBOARD;  break;  // LLM streaming
     case DialPhase::Waiting:   text = LV_SYMBOL_WARNING;  break;  // needs you
     case DialPhase::Done:      text = LV_SYMBOL_OK;       break;
     case DialPhase::Error:     text = LV_SYMBOL_CLOSE;    break;

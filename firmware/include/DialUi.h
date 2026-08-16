@@ -22,7 +22,8 @@
 enum class DialPhase : uint8_t {
   Idle,
   Working,
-  Thinking,   // LLM is generating / waiting for API response (no tool running)
+  Thinking,    // waiting for the first LLM token
+  Streaming,   // LLM tokens are arriving (输出中)
   Waiting,
   Done,
   Error,
