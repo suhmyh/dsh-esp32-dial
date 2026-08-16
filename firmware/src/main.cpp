@@ -55,6 +55,7 @@ static bool batteryCharging = false;
 static unsigned long lastPingMs = 0;
 static unsigned long lastActivityMs = 0;  // last state change or interaction
 static unsigned long wifiAttemptStartedMs = 0;
+static unsigned long linkDownSinceMs = 0;  // first WL_DISCONNECTED sighting
 
 /**
  * How long to wait for the stored network before opening the portal.
@@ -204,6 +205,11 @@ void beginWifiJoin() {
 
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
+  WiFi.setSleep(false);  // Disable modem sleep: the ESP32's power-save
+  // mode periodically drops the connection to scan for better APs, which on a
+  // stationary dial with a known-good AP causes spurious disconnects every few
+  // minutes. The dial is always plugged in; saving milliwatts is not worth the
+  // instability.
   Serial.printf("[wifi] joining %s\n", cfg.wifiSsid.c_str());
   WiFi.begin(cfg.wifiSsid.c_str(), cfg.wifiPassword.c_str());
 
@@ -248,13 +254,28 @@ void serviceRunning() {
 
   // A dropped network sends the dial back through the joining path, which opens
   // the portal if the network stays unavailable.
+  //
+  // A single missing status reading is not a dropped network: WiFi.status()
+  // reports WL_DISCONNECTED during ordinary events like an AP beacon miss or a
+  // DHCP renewal, and the ESP32's own auto-reconnect usually restores the link
+  // within a second. Tearing down the socket on the first such reading is what
+  // made the dial drop its link "偶尔" for no visible reason — and worse, each
+  // teardown risked opening the provisioning portal over a working network.
+  // So require the link to be down continuously before believing it.
   if (WiFi.status() != WL_CONNECTED) {
+    if (linkDownSinceMs == 0) {
+      linkDownSinceMs = millis();
+      return;  // first sighting: give auto-reconnect a chance
+    }
+    if (millis() - linkDownSinceMs < DSH_LINK_GRACE_MS) return;
     Serial.println("[wifi] link lost");
+    linkDownSinceMs = 0;
     ws.close();
-    dialUi.setConnecting("WiFi 断开，重连中…");
+    dialUi.setConnecting("WiFi 断开，重连中");
     beginWifiJoin();
     return;
   }
+  linkDownSinceMs = 0;
 
   ws.loop();
 
@@ -263,6 +284,18 @@ void serviceRunning() {
       ws.sendf("{\"t\":\"ping\",\"battery\":%u,\"charging\":%s}",
                batteryPercent, batteryCharging ? "true" : "false");
       lastPingMs = millis();
+    }
+    // A TCP connection can stay open long after the far end stops answering:
+    // the bridge process dying, or the FRP tunnel dropping, leaves the socket
+    // established with nothing behind it. Without this check the dial would
+    // hold that dead socket forever, showing stale data and never reconnecting.
+    // Every pong updates lastRecvMs, so silence past several ping periods means
+    // the link is gone regardless of what the socket claims.
+    if (millis() - ws.lastRecvMs() > DSH_WS_SILENCE_MS) {
+      Serial.println("[ws] no traffic within timeout — reconnecting");
+      ws.close();
+      dialUi.setConnecting("桥接无响应，重连中");
+      return;
     }
     // Silence past the freshness window means the numbers on screen are no
     // longer known to be current, so the dial says so rather than lying.

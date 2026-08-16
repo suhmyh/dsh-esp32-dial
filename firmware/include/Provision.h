@@ -57,6 +57,7 @@ class Provisioner {
 
  private:
   void handleRoot();
+  void handleCurrent();
   void handleSave();
   void handleScan();
   void handleNotFound();
@@ -70,6 +71,8 @@ class Provisioner {
   String apPassword_;
   String reason_;
   unsigned long startedMs_ = 0;
+  /** Scratch buffer for /current, so the response needs no heap churn. */
+  char jsonBuf_[224] = {0};
 };
 
 extern Provisioner provisioner;

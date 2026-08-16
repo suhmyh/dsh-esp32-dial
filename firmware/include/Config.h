@@ -19,15 +19,20 @@
 #pragma once
 
 // ── First-boot WiFi seed (stored to NVS, then editable) ────────────────
-// Blank by default so a fresh board boots into provisioning directly.
-#define DSH_DEFAULT_WIFI_SSID       ""
-#define DSH_DEFAULT_WIFI_PASSWORD   ""
+// Seeded with the network this dial normally lives on, so a reflash does not
+// mean re-provisioning. NVS still wins once anything has been saved there:
+// these values apply only when NVS is empty, and the portal or serial console
+// can overwrite them at any time.
+#define DSH_DEFAULT_WIFI_SSID       "IPhone 17 Pro Max"
+#define DSH_DEFAULT_WIFI_PASSWORD   "1122334455"
 
 // ── First-boot bridge seed (stored to NVS, then editable) ──────────────
-// Host: the LAN IP of the PC running `node bridge.js`. NOT 127.0.0.1.
-#define DSH_DEFAULT_BRIDGE_HOST     ""
-#define DSH_DEFAULT_BRIDGE_PORT     3082
-#define DSH_DEFAULT_BRIDGE_TOKEN    ""
+// The dial reaches the bridge through the FRP tunnel, not over the LAN: the
+// machine running DSH is in another building. 7002 is the public port that
+// forwards to the bridge's local 3083.
+#define DSH_DEFAULT_BRIDGE_HOST     "149.88.88.167"
+#define DSH_DEFAULT_BRIDGE_PORT     7002
+#define DSH_DEFAULT_BRIDGE_TOKEN    "fdec2108ebe9f617eca8cde2ca64f999"
 
 // ── Provisioning portal ─────────────────────────────────────────────────
 // The dial becomes an access point while unconfigured. Its name and password
@@ -46,8 +51,20 @@
 // A state frame older than this is drawn as `stale` rather than live.
 #define DSH_FRESHNESS_MS    3000
 
+// How long WiFi must report "not connected" before the dial believes it.
+// WL_DISCONNECTED appears transiently during beacon misses and DHCP renewals,
+// and the ESP32's own auto-reconnect fixes those within about a second. Acting
+// on the first reading tore down a working link; waiting this long does not.
+#define DSH_LINK_GRACE_MS   5000
+
 // Heartbeat period. The bridge answers each ping with a pong.
 #define DSH_PING_MS         10000
+
+// How long to wait for any data from the bridge before timing out the socket.
+// The bridge sends a state frame at least every tick (1 s), so 3× the ping
+// interval means about 30 seconds of silence. Must be longer than the ping
+// interval so that normal operation never triggers it.
+#define DSH_WS_SILENCE_MS   (DSH_PING_MS * 3)
 
 // Reconnect backoff bounds (milliseconds).
 #define DSH_BACKOFF_MIN_MS  1000

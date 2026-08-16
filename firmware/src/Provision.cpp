@@ -82,13 +82,13 @@ static const char* kHtmlForm = R"html(
   <h2><span class="n">2</span>连接电脑上的桥接</h2>
   <p class="hint">先在电脑上运行桥接程序（<code>node bridge.js</code>），它启动时会打印一行 <code>device token:</code>。</p>
 
-  <label for="host">电脑的地址</label>
-  <input type="text" id="host" placeholder="例如：192.168.1.20" required>
-  <div class="hint">电脑在局域网的 IP 地址，<code>ipconfig</code> 里看 IPv4 那行。</div>
+  <label for="host">桥接地址</label>
+  <input type="text" id="host" placeholder="例如：149.88.88.167" required>
+  <div class="hint">同一局域网填电脑 IP；跨网络填公网地址。</div>
 
   <label for="port">端口</label>
-  <input type="text" id="port" value="3082" inputmode="numeric">
-  <div class="hint">默认填 3082 就行。</div>
+  <input type="text" id="port" value="7002" inputmode="numeric">
+  <div class="hint">局域网直连填 3083，走公网隧道填 7002。</div>
 
   <label for="token">设备令牌（Token）</label>
   <input type="password" id="token" placeholder="桥接窗口里的 32 位口令" required>
@@ -145,6 +145,23 @@ async function save(){
     btn.disabled=false;btn.textContent='保存并连接';
   }
 }
+// Prefill the form with what the dial is actually configured to use, so
+// changing one field does not mean retyping the rest. The password and token
+// are deliberately NOT sent back — a value already saved should not be
+// readable from a page anyone on the AP can open — so those two stay blank and
+// are only written when non-empty (see /save).
+async function loadCurrent(){
+  try{
+    const r=await fetch('/current');
+    const j=await r.json();
+    if(j.ssid)$('ssid').value=j.ssid;
+    if(j.host)$('host').value=j.host;
+    if(j.port)$('port').value=j.port;
+    if(j.hasPass)$('pass').placeholder='已保存，留空则不修改';
+    if(j.hasToken)$('token').placeholder='已保存，留空则不修改';
+  }catch(e){}
+}
+loadCurrent();
 </script>
 </body>
 </html>
@@ -197,6 +214,25 @@ void Provisioner::handleRoot() {
   httpServer.send(200, "text/html; charset=utf-8", kHtmlForm);
 }
 
+/**
+ * Report what the dial is currently configured to use, for form prefill.
+ *
+ * Password and token are never returned: the page is served on an open AP the
+ * visitor joined from their phone, and a bystander could read saved secrets.
+ * The booleans just tell the form that those fields already hold values, so
+ * leaving them blank on save means "keep what we have".
+ */
+void Provisioner::handleCurrent() {
+  const DialSettings& cfg = settingsStore.get();
+  snprintf(jsonBuf_, sizeof(jsonBuf_),
+           "{\"ssid\":\"%s\",\"host\":\"%s\",\"port\":%u,"
+           "\"hasPass\":%s,\"hasToken\":%s}",
+           cfg.wifiSsid.c_str(), cfg.bridgeHost.c_str(), cfg.bridgePort,
+           cfg.wifiPassword.length() > 0 ? "true" : "false",
+           cfg.bridgeToken.length() > 0 ? "true" : "false");
+  httpServer.send(200, "application/json; charset=utf-8", jsonBuf_);
+}
+
 void Provisioner::handleNotFound() {
   // Captive portal: every URL serves the same form. iOS/Android probe
   // captive.apple.com / connectivitycheck.gstatic.com; this answers all of
@@ -211,17 +247,24 @@ void Provisioner::handleSave() {
   const String portStr = httpServer.arg("port");
   const String token = httpServer.arg("token");
 
-  if (ssid.length() == 0 || host.length() == 0 || token.length() == 0) {
+  // Password and token may be left blank to mean "keep the saved one", which is
+  // what the prefilled form promises. Only SSID and host are truly required,
+  // because those are shown in the form and can always be re-entered.
+  const DialSettings& current = settingsStore.get();
+  const String effectivePass = pass.length() > 0 ? pass : current.wifiPassword;
+  const String effectiveToken = token.length() > 0 ? token : current.bridgeToken;
+
+  if (ssid.length() == 0 || host.length() == 0 || effectiveToken.length() == 0) {
     httpServer.send(400, "application/json",
-                    "{\"ok\":false,\"error\":\"SSID、地址和令牌不能为空\"}");
+                    "{\"ok\":false,\"error\":\"WiFi 名称、地址和令牌不能为空\"}");
     return;
   }
 
   uint16_t port = (uint16_t)portStr.toInt();
   if (port == 0) port = DSH_DEFAULT_BRIDGE_PORT;
 
-  settingsStore.setWifi(ssid, pass);
-  settingsStore.setBridge(host, port, token);
+  settingsStore.setWifi(ssid, effectivePass);
+  settingsStore.setBridge(host, port, effectiveToken);
 
   httpServer.send(200, "application/json", "{\"ok\":true}");
 
@@ -277,6 +320,7 @@ void Provisioner::begin(const char* reason) {
 
   // HTTP
   httpServer.on("/", [this]() { handleRoot(); });
+  httpServer.on("/current", [this]() { handleCurrent(); });
   httpServer.on("/save", HTTP_POST, [this]() { handleSave(); });
   httpServer.on("/scan", [this]() { handleScan(); });
   httpServer.onNotFound([this]() { handleNotFound(); });
