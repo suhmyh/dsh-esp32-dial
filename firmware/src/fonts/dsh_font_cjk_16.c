@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Size: 16 px
  * Bpp: 4
- * Opts: --font C:\Windows\Fonts\simhei.ttf --size 16 --bpp 4 --format lvgl --no-compress --lv-include lvgl.h -o D:\deepseek Harness\工作区1\dsh-esp32\firmware\src\fonts\dsh_font_cjk_16.c --range 0x20-0x7E --symbols 按败保备必编并不步查陈称程持出窗次从存错答打待单到道地的等点电调定动都读端断尔范放分份附复改搞更工公规和后划缓回会机即辑计技家接近旧局拒具绝均开看可空口跨离里例连联两列令留轮络码每密面描名命幕脑能你钮偶牌盘配平屏启桥清取确然让认任如入三扫上设身失时示手首输搜隧索它态体填停同完网为位问无务误下先闲显线响项协写新行修需许序选询样要一已以议印应用域圆允运再在载则找正支执直止只址制智置中钟重助状子自走·、。：（）
+ * Opts: --font C:\Windows\Fonts\simhei.ttf --size 16 --bpp 4 --format lvgl --no-compress --lv-include lvgl.h -o D:\deepseek Harness\工作区1\dsh-esp32\firmware\src\fonts\dsh_font_cjk_16.c --range 0x20-0x7E --symbols 按败保备必编并不步查陈称程持出窗次从存错答打待单到道地的等点电调定动都读端断尔范放分份附复改搞更工公规和后划缓回会机即辑计技家接近旧局拒具绝均开看可空口跨离里例连联两列令留轮络码每密面描名命幕脑能你钮偶牌盘配平屏启桥清取确然让认任如入三扫上设身失时示手首输搜隧索它态体填停同完网为位问无务误下先闲显线响项协写新行修需许序选询样要一已以议印应用域圆允运再在载则找正支执直止只址制智置中钟重助状子自走·、。，：（）！？
  ******************************************************************************/
 
 #ifdef LV_LVGL_H_INCLUDE_SIMPLE
@@ -3987,6 +3987,11 @@ static LV_ATTRIBUTE_LARGE_CONST const uint8_t glyph_bitmap[] = {
     0xc8, 0x0, 0x0, 0x9e, 0xcc, 0xcc, 0xcc, 0xe8,
     0x0, 0x0, 0x9a, 0x0, 0x0, 0x0, 0x0, 0x0,
 
+    /* U+FF01 "！" */
+    0x7, 0x50, 0xfb, 0xf, 0xa0, 0xf9, 0xe, 0x80,
+    0xd7, 0xc, 0x60, 0xb5, 0x0, 0x0, 0x0, 0x1e,
+    0x91, 0xfb,
+
     /* U+FF08 "（" */
     0x0, 0x0, 0x70, 0x0, 0xb, 0xb0, 0x0, 0x9a,
     0x0, 0x4, 0xd0, 0x0, 0xb, 0x60, 0x0, 0xf,
@@ -4003,9 +4008,21 @@ static LV_ATTRIBUTE_LARGE_CONST const uint8_t glyph_bitmap[] = {
     0x50, 0x0, 0xab, 0x0, 0xa, 0xc1, 0x0, 0x6,
     0x0, 0x0,
 
+    /* U+FF0C "，" */
+    0x6, 0x61, 0xf, 0xf3, 0xf, 0xf3, 0x0, 0xe2,
+    0x8, 0xa0, 0x3, 0x0,
+
     /* U+FF1A "：" */
     0x11, 0xf, 0xf1, 0xff, 0x10, 0x0, 0x11, 0xf,
-    0xf1, 0xff, 0x10
+    0xf1, 0xff, 0x10,
+
+    /* U+FF1F "？" */
+    0x1, 0x67, 0x10, 0x2, 0xfc, 0xce, 0x10, 0x9a,
+    0x0, 0xc8, 0x6, 0x50, 0xa, 0x80, 0x0, 0x1,
+    0xf4, 0x0, 0x0, 0xda, 0x0, 0x0, 0x8c, 0x0,
+    0x0, 0xe, 0x40, 0x0, 0x0, 0xe1, 0x0, 0x0,
+    0x0, 0x0, 0x0, 0x4, 0xd5, 0x0, 0x0, 0x5f,
+    0x60, 0x0
 };
 
 
@@ -4311,9 +4328,12 @@ static const lv_font_fmt_txt_glyph_dsc_t glyph_dsc[] = {
     {.bitmap_index = 26100, .adv_w = 256, .box_w = 14, .box_h = 14, .ofs_x = 1, .ofs_y = -1},
     {.bitmap_index = 26198, .adv_w = 256, .box_w = 16, .box_h = 15, .ofs_x = 0, .ofs_y = -2},
     {.bitmap_index = 26318, .adv_w = 256, .box_w = 14, .box_h = 16, .ofs_x = 1, .ofs_y = -2},
-    {.bitmap_index = 26430, .adv_w = 256, .box_w = 6, .box_h = 14, .ofs_x = 9, .ofs_y = -1},
-    {.bitmap_index = 26472, .adv_w = 256, .box_w = 6, .box_h = 14, .ofs_x = 1, .ofs_y = -1},
-    {.bitmap_index = 26514, .adv_w = 256, .box_w = 3, .box_h = 7, .ofs_x = 3, .ofs_y = 0}
+    {.bitmap_index = 26430, .adv_w = 256, .box_w = 3, .box_h = 12, .ofs_x = 3, .ofs_y = 0},
+    {.bitmap_index = 26448, .adv_w = 256, .box_w = 6, .box_h = 14, .ofs_x = 9, .ofs_y = -1},
+    {.bitmap_index = 26490, .adv_w = 256, .box_w = 6, .box_h = 14, .ofs_x = 1, .ofs_y = -1},
+    {.bitmap_index = 26532, .adv_w = 256, .box_w = 4, .box_h = 6, .ofs_x = 1, .ofs_y = -3},
+    {.bitmap_index = 26544, .adv_w = 256, .box_w = 3, .box_h = 7, .ofs_x = 3, .ofs_y = 0},
+    {.bitmap_index = 26555, .adv_w = 256, .box_w = 7, .box_h = 12, .ofs_x = 2, .ofs_y = 0}
 };
 
 /*---------------------
@@ -4346,7 +4366,7 @@ static const uint16_t unicode_list_1[] = {
     0x8eb7, 0x8ec6, 0x8eda, 0x8edc, 0x8f19, 0x8f1a, 0x8f27, 0x8f52,
     0x8f9c, 0x9046, 0x9096, 0x9115, 0x9116, 0x93e8, 0x93f7, 0x9462,
     0x9537, 0x953b, 0x958d, 0x9591, 0x95f0, 0x9649, 0x96ab, 0x97c2,
-    0x98df, 0xfe51, 0xfe52, 0xfe63
+    0x98df, 0xfe4a, 0xfe51, 0xfe52, 0xfe55, 0xfe63, 0xfe68
 };
 
 /*Collect the unicode lists and glyph_id offsets*/
@@ -4357,8 +4377,8 @@ static const lv_font_fmt_txt_cmap_t cmaps[] =
         .unicode_list = NULL, .glyph_id_ofs_list = NULL, .list_length = 0, .type = LV_FONT_FMT_TXT_CMAP_FORMAT0_TINY
     },
     {
-        .range_start = 183, .range_length = 65124, .glyph_id_start = 96,
-        .unicode_list = unicode_list_1, .glyph_id_ofs_list = NULL, .list_length = 204, .type = LV_FONT_FMT_TXT_CMAP_SPARSE_TINY
+        .range_start = 183, .range_length = 65129, .glyph_id_start = 96,
+        .unicode_list = unicode_list_1, .glyph_id_ofs_list = NULL, .list_length = 207, .type = LV_FONT_FMT_TXT_CMAP_SPARSE_TINY
     }
 };
 

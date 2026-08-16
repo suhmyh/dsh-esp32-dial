@@ -213,9 +213,9 @@ void beginWifiJoin() {
   Serial.printf("[wifi] joining %s\n", cfg.wifiSsid.c_str());
   WiFi.begin(cfg.wifiSsid.c_str(), cfg.wifiPassword.c_str());
 
-  char msg[64];
-  snprintf(msg, sizeof(msg), "WiFi: %s", cfg.wifiSsid.c_str());
-  dialUi.setConnecting(msg);
+  // Short message: a long SSID must not overflow the one line, so the network
+  // name is trimmed with a leading marker rather than dumped in full.
+  dialUi.setConnecting("正在连接 WiFi");
 }
 
 void serviceConnecting() {
@@ -228,7 +228,7 @@ void serviceConnecting() {
              onWsMessage);
     mode = AppMode::Running;
     lastActivityMs = millis();
-    dialUi.setConnecting("连接桥接…");
+    dialUi.setConnecting("正在连接桥接");
     return;
   }
 
@@ -271,7 +271,7 @@ void serviceRunning() {
     Serial.println("[wifi] link lost");
     linkDownSinceMs = 0;
     ws.close();
-    dialUi.setConnecting("WiFi 断开，重连中");
+    dialUi.setConnecting("WiFi 断开 重连中");
     beginWifiJoin();
     return;
   }
@@ -294,7 +294,7 @@ void serviceRunning() {
     if (millis() - ws.lastRecvMs() > DSH_WS_SILENCE_MS) {
       Serial.println("[ws] no traffic within timeout — reconnecting");
       ws.close();
-      dialUi.setConnecting("桥接无响应，重连中");
+      dialUi.setConnecting("桥接无响应 重连中");
       return;
     }
     // Silence past the freshness window means the numbers on screen are no

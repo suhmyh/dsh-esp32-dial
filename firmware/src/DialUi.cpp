@@ -714,14 +714,34 @@ void DialUi::hideProvisioning() {
  *
  * Kept separate from setState so a connection message can never be mistaken for
  * session data: the phase stays Offline until the bridge actually speaks.
+ *
+ * Everything that belongs to a live session is hidden here rather than left at
+ * its last value. During startup those widgets hold nothing meaningful, and
+ * leaving the clock, activity rows and statistics ticker on screen alongside the
+ * connection message is what made this screen feel crowded — seven elements
+ * competing inside a 360px circle to say one thing: "connecting".
  */
 void DialUi::setConnecting(const char* message) {
   if (provisioning_ || waiting_) return;
   phase_ = DialPhase::Offline;
   setPhaseLabel(DialPhase::Offline);
   lv_obj_set_style_bg_color(statusBg_, colorForPhase(DialPhase::Offline, false), 0);
-  lv_label_set_text(titleLabel_, "DSH");
+
+  // The product name is the title; the progress message goes below it. Both are
+  // centred, and nothing else is drawn.
+  lv_label_set_text(titleLabel_, "DeepSeek Harness");
   lv_label_set_text(detailLabel_, message != nullptr ? message : "");
+
+  // Hide the session widgets: they have no data yet.
+  if (clockLabel_ != nullptr) lv_obj_add_flag(clockLabel_, LV_OBJ_FLAG_HIDDEN);
+  if (clockSubLabel_ != nullptr) lv_obj_add_flag(clockSubLabel_, LV_OBJ_FLAG_HIDDEN);
+  if (statsLabel_ != nullptr) lv_obj_add_flag(statsLabel_, LV_OBJ_FLAG_HIDDEN);
+  for (int i = 0; i < kActivityLines; ++i) {
+    if (activityRows_[i] != nullptr) {
+      lv_obj_add_flag(activityRows_[i], LV_OBJ_FLAG_HIDDEN);
+    }
+  }
+  // The footer stays: link state and battery are exactly what matters now.
   updateArc(0);
 }
 
