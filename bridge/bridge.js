@@ -633,13 +633,20 @@ async function onDeviceFrame(device, text) {
 	try { frame = JSON.parse(text); } catch { return; }
 
 	switch (frame.t) {
-		case "hello":
+		case "hello": {
 			device.info = { fw: frame.fw, board: frame.board };
 			log(`device hello: ${frame.board ?? "?"} fw=${frame.fw ?? "?"} battery=${frame.battery ?? "?"}%`);
 			// Give a new device the current picture immediately.
 			if (lastState !== undefined) send(device, toFrame(lastState));
 			else send(device, { t: "state", phase: "idle", title: "", detail: "", ctx: 0, turns: 0, steps: 0, perm: "", sessions: 0, running: 0, seq: 0 });
+			// Replay any pending asks so a reconnecting dial does not miss them.
+			// A device that just reconnected would otherwise sit idle while asks
+			// pile up unanswered on the bridge.
+			for (const [askId, ask] of pendingAsks) {
+				if (ask.frame) send(device, ask.frame);
+			}
 			break;
+		}
 
 		case "ping":
 			device.battery = frame.battery;
@@ -714,16 +721,13 @@ async function onDeviceFrame(device, text) {
  */
 function publishAsk({ kind, title, body, options, respond, ttlMs = 120000 }) {
 	const id = `ask-${randomBytes(3).toString("hex")}`;
-	pendingAsks.set(id, { respond: respond ?? null, at: Date.now() });
-	broadcast({
-		t: "ask",
-		id,
-		kind,
-		title,
-		body,
-		options,
+	// Keep the frame so it can be replayed to a device that reconnects mid-ask.
+	const frame = {
+		t: "ask", id, kind, title, body, options,
 		expiresAt: Date.now() + ttlMs,
-	});
+	};
+	pendingAsks.set(id, { respond: respond ?? null, at: Date.now(), frame });
+	broadcast(frame);
 	broadcast({ t: "beep", kind: "waiting" });
 	log(`ask published: ${id} (${kind}) ${title}`);
 	return id;
