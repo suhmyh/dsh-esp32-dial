@@ -33,6 +33,16 @@ class WsClient {
   bool connect();                              // blocking connect+handshake
   bool send(const char* json);                 // one JSON text frame
   bool sendf(const char* fmt, ...);            // formatted frame
+  /**
+   * Send one binary frame.
+   *
+   * Voice capture needs a channel that is not JSON: base64 in a text frame
+   * would inflate every audio chunk by a third and burn CPU on a device that is
+   * already streaming in real time. Audio therefore rides binary frames while
+   * the surrounding control messages (`voice_start`, `voice_end`) stay JSON, so
+   * the bridge can tell a chunk from a command by opcode alone.
+   */
+  bool sendBinary(const uint8_t* data, size_t length);
   void close();
 
   WsState state() const { return state_; }
