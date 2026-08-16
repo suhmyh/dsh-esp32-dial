@@ -101,14 +101,19 @@ void DialUi::buildMainScreen() {
                       LV_EVENT_LONG_PRESSED, nullptr);
 
   // Context pressure arc → outer ring, indicator mode.
+  // LVGL's 0° is at 3 o'clock (right), so the arc initially grows from the
+  // right side — every state change the indicator bar starts at 3 o'clock,
+  // which looks like "每次的位置都不一样". Fix: shift the arc's working
+  // range to 270°–630° (12 o'clock, top of the dial), so 0% context pressure
+  // sits at the top and the indicator grows clockwise from there.
   arc_ = lv_arc_create(scr);
   lv_obj_set_size(arc_, 340, 340);
   lv_obj_set_pos(arc_, 10, 10);
   lv_arc_set_mode(arc_, LV_ARC_MODE_NORMAL);
   lv_arc_set_range(arc_, 0, 100);
   lv_arc_set_value(arc_, 0);
-  lv_arc_set_bg_angles(arc_, 0, 360);
-  lv_arc_set_angles(arc_, 0, 0);
+  lv_arc_set_bg_angles(arc_, 270, 630);  // full circle, gap at 3 o'clock
+  lv_arc_set_angles(arc_, 270, 270);     // indicator starts at 12 o'clock, empty
   lv_obj_set_style_arc_width(arc_, 8, 0);
   lv_obj_set_style_arc_color(arc_, kGray, LV_PART_INDICATOR);
   lv_obj_set_style_arc_opa(arc_, 80, LV_PART_INDICATOR);
