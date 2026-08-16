@@ -23,7 +23,10 @@ bool IRAM_ATTR lvglOnDmaDone(esp_lcd_panel_io_handle_t, esp_lcd_panel_io_event_d
 namespace {
 
 constexpr uint32_t kTickMs = 5;
-constexpr size_t kBufferPixels = EXAMPLE_LCD_WIDTH * 48;
+// Full-screen buffer: the dial's flush driver (via DMA on_color_trans_done)
+// has historically left ghost/burn-in on partial refreshes, so render every
+// frame to a full-screen buffer and push it whole. 360×360×2B = 253KB.
+constexpr size_t kBufferPixels = EXAMPLE_LCD_WIDTH * EXAMPLE_LCD_HEIGHT;
 
 lv_disp_draw_buf_t drawBuffer;
 lv_color_t* buffer1 = nullptr;
@@ -74,6 +77,7 @@ void LvglPort_Init() {
   displayDriver.ver_res = EXAMPLE_LCD_HEIGHT;
   displayDriver.flush_cb = flushDisplay;
   displayDriver.draw_buf = &drawBuffer;
+  displayDriver.full_refresh = 1;  // always push a full frame; kills ghost artefacts
   lv_disp_drv_register(&displayDriver);
   g_lvglDriver = &displayDriver;
 
