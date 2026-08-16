@@ -164,9 +164,14 @@ class DialUi {
   lv_obj_t* activityRows_[kActivityLines] = {nullptr};
 
   // Always-on footer: link, signal, battery — device health at a glance.
-  lv_obj_t* footerLeft_ = nullptr;   // link dot + label
-  lv_obj_t* footerRight_ = nullptr;  // battery
-  lv_obj_t* statsLabel_ = nullptr;   // idle statistics ticker
+  // Icon and text are separate labels because the icon needs Montserrat (which
+  // carries LVGL built-in symbols at 0xF1xx) while the text needs SIMSUN (which
+  // has Chinese glyphs but no LVGL symbols at all — see the font torture chart
+  // in DialUi.cpp for the full list of characters that render as boxes).
+  lv_obj_t* footerIcon_ = nullptr;   // LVGL symbol (Montserrat)
+  lv_obj_t* footerText_ = nullptr;   // "已连接" / "离线" (SIMSUN)
+  lv_obj_t* footerRight_ = nullptr;  // battery — SIMSUN, ASCII only
+  lv_obj_t* statsLabel_ = nullptr;   // idle statistics ticker (SIMSUN)
 
   // Ask overlay
   lv_obj_t* askBg_ = nullptr;        // yellow overlay

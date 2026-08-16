@@ -355,7 +355,7 @@ function formatStats(values) {
 		parts.push(`缓存命中 ${Math.round((cached / totalIn) * 100)}%`);
 		parts.push(`输入 ${fmtTokens(totalIn)} tok · 输出 ${fmtTokens(tu?.outputTokens)} tok`);
 	}
-	return parts.join(" │ ");
+	return parts.join(" | ");
 }
 
 /**

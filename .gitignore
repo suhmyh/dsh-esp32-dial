@@ -1,6 +1,9 @@
 # Build artifacts
 firmware/.pio/
 bridge/node_modules/
+tools/node_modules/
+tools/.npm-cache/
+tools/package-lock.json
 # OS noise
 .DS_Store
 Thumbs.db
