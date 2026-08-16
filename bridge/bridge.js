@@ -349,7 +349,8 @@ function deriveState(snapshot, previous) {
 	// more than the command that happens to be in flight.
 	const runningTool = [...liveFacts.tools].reverse().find((t) => t.running === true);
 	const runningJob = liveFacts.jobs.find((j) => j.status === "running");
-	const detail = runningTool !== undefined ? runningTool.line
+	const detail = phase === "thinking" ? "思考中"
+		: runningTool !== undefined ? runningTool.line
 		: runningJob !== undefined ? firstLine(runningJob.label, runningJob.kind)
 		: goal?.objective !== undefined ? String(goal.objective).slice(0, 60)
 		: Array.isArray(todos) ? `${todos.filter((t) => t.status === "completed").length}/${todos.length} 任务`
