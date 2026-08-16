@@ -652,7 +652,7 @@ void DialUi::showAsk(const JsonDocument& doc) {
   strncpy(activeAsk_.body, body, sizeof(activeAsk_.body) - 1);
   activeAsk_.body[sizeof(activeAsk_.body) - 1] = '\0';
 
-  activeAsk_.expiresAt = doc["expiresAt"] | (millis() + DSH_ASK_TIMEOUT_MS);
+  activeAsk_.expiresAt = millis() + DSH_ASK_TIMEOUT_MS;
   activeAsk_.optionCount = 0;
 
   JsonArrayConst options = doc["options"].as<JsonArrayConst>();
