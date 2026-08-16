@@ -3,196 +3,292 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DSH 圆盘 UI 模拟</title>
+<title>DSH 圆盘 UI 模拟 v2</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#1a1a2e;display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;gap:40px;flex-wrap:wrap;padding:20px}
-/* 圆盘本体 */
 .dial{width:360px;height:360px;border-radius:50%;background:#0D111D;position:relative;overflow:hidden;box-shadow:0 0 60px rgba(0,0,0,.5),inset 0 0 30px rgba(0,0,0,.3);flex:none}
-/* 状态色背景 */
 .dial .bg{position:absolute;inset:0;border-radius:50%;transition:background .6s}
-/* 外圈弧线 */
 .arc{position:absolute;top:8px;left:8px;right:8px;bottom:8px;border-radius:50%;pointer-events:none}
 .arc-track{stroke:#1a1a2e;stroke-width:7;fill:none}
 .arc-fill{stroke-width:7;fill:none;stroke-linecap:round;transition:stroke-dashoffset .5s,stroke .5s;transform:rotate(-90deg);transform-origin:center}
-/* 内容 */
 .content{position:absolute;inset:30px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;z-index:2}
-.icon{font-size:64px;line-height:1;margin-bottom:8px;transition:all .4s;filter:drop-shadow(0 4px 8px rgba(0,0,0,.3))}
-.title{font-size:16px;font-weight:600;color:#fff;margin-bottom:4px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:color .3s}
-.detail{font-size:13px;color:#8891a5;max-width:280px}
+.icon{font-size:56px;line-height:1;margin-bottom:6px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.3))}
+.title{font-size:17px;font-weight:600;color:#fff;margin-bottom:2px;max-width:260px}
+.detail{font-size:13px;color:#8891a5;max-width:280px;margin-bottom:4px}
 .detail.ok{color:#4CAF50}
 .detail.err{color:#E53935}
-/* 底部品牌 */
-.brand{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);font-size:10px;color:#3a3f52;letter-spacing:2px;z-index:2}
+/* 底部信息栏 — 常驻，任何状态都能看到设备是否健康 */
+.status-bar{position:absolute;bottom:18px;left:20px;right:20px;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#3a3f52;z-index:3;pointer-events:none}
+.status-bar .item{display:flex;align-items:center;gap:4px}
+.status-bar .dot{width:6px;height:6px;border-radius:50%;display:inline-block}
+.status-bar .dot.on{background:#4CAF50}
+.status-bar .dot.off{background:#666}
+.status-bar .battery{display:flex;align-items:center;gap:3px;font-size:10px}
+.status-bar .battery .bar{width:14px;height:8px;border:1px solid #3a3f52;border-radius:2px;padding:1px;display:flex}
+.status-bar .battery .bar div{height:100%;border-radius:1px;background:#4CAF50;transition:width .3s}
+.status-bar .battery .bar div.low{background:#E53935}
+/* 队列徽标 — 有多少活排着 */
+.queue-indicator{position:absolute;top:12px;right:16px;background:rgba(0,0,0,.3);border-radius:10px;padding:2px 8px;font-size:10px;color:#8891a5;z-index:3;display:flex;align-items:center;gap:4px}
+/* 空闲态时钟 */
+.clock{font-size:36px;font-weight:300;color:#fff;margin-bottom:4px;letter-spacing:1px;font-variant-numeric:tabular-nums}
+.clock-sub{font-size:12px;color:#3a3f52;margin-bottom:6px}
 /* 审批覆盖层 */
-.ask-overlay{position:absolute;inset:0;border-radius:50%;z-index:5;display:none;flex-direction:column;align-items:center;justify-content:center;padding:30px;background:#F5C518;transition:opacity .3s}
+.ask-overlay{position:absolute;inset:0;border-radius:50%;z-index:5;display:none;flex-direction:column;align-items:center;justify-content:flex-start;padding:36px 28px 24px;background:#F5C518}
 .ask-overlay.show{display:flex}
-.ask-icon{font-size:36px;margin-bottom:8px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.1))}
-.ask-title{font-size:18px;font-weight:700;color:#1a1a2e;margin-bottom:4px}
-.ask-body{font-size:14px;color:#5c4a1a;margin-bottom:20px;max-width:260px;text-align:center}
-.ask-btns{display:flex;gap:12px}
-.ask-btn{padding:8px 24px;border:none;border-radius:20px;font-size:16px;font-weight:700;cursor:pointer;min-width:80px;transition:transform .15s}
+.ask-agent{font-size:12px;color:#8a6d00;margin-bottom:2px;font-weight:600}
+.ask-title{font-size:18px;font-weight:700;color:#1a1a2e;margin-bottom:4px;max-width:300px;text-align:center}
+.ask-body{font-size:13px;color:#5c4a1a;margin-bottom:auto;max-width:280px;text-align:center;overflow-y:auto;line-height:1.4}
+.ask-timeout{font-size:11px;color:#8a6d00;margin-bottom:10px}
+.ask-btns{display:flex;gap:12px;width:100%}
+.ask-btn{flex:1;padding:10px;border:none;border-radius:16px;font-size:15px;font-weight:700;cursor:pointer;transition:transform .15s}
 .ask-btn:active{transform:scale(.95)}
 .ask-btn.allow{background:#1b5e20;color:#fff}
 .ask-btn.deny{background:#b71c1c;color:#fff}
-.ask-btn.timeout{background:#666;color:#fff}
 /* 配网覆盖层 */
-.prov-overlay{position:absolute;inset:0;border-radius:50%;z-index:5;display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px;background:#1E88E5}
+.prov-overlay{position:absolute;inset:0;border-radius:50%;z-index:5;display:none;flex-direction:column;align-items:center;justify-content:center;padding:20px;background:#1E88E5}
 .prov-overlay.show{display:flex}
-.prov-title{font-size:16px;font-weight:600;color:#fff;margin-bottom:12px;text-align:center}
-.prov-qr{width:140px;height:140px;background:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;font-size:10px;color:#888;position:relative}
+.prov-title{font-size:15px;font-weight:600;color:#fff;margin-bottom:12px;text-align:center}
+.prov-qr{width:140px;height:140px;background:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;flex-shrink:0}
 .prov-qr svg{width:120px;height:120px}
-.prov-creds{font-size:12px;color:#cce6ff;text-align:center;margin-bottom:4px;word-break:break-all}
+.prov-creds{font-size:12px;color:#cce6ff;text-align:center;margin-bottom:2px;word-break:break-all}
 .prov-url{font-size:13px;color:#ffd97a;font-weight:600}
-/* 状态切换控件 */
-.controls{background:#151a28;border:1px solid #252c3d;border-radius:16px;padding:24px;width:320px;color:#e8eaf0}
+.prov-status{font-size:11px;color:#cce6ff;margin-top:6px;padding:4px 12px;border-radius:8px;background:rgba(0,0,0,.15)}
+/* 结果行 — 完成/出错时给出真正有用的一句 */
+.result-box{background:rgba(0,0,0,.2);border-radius:8px;padding:6px 10px;margin-top:4px;max-width:260px;font-size:12px;color:#cce6ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 控件 */
+.controls{background:#151a28;border:1px solid #252c3d;border-radius:16px;padding:24px;width:340px;color:#e8eaf0}
 .controls h2{font-size:14px;margin-bottom:12px;color:#8891a5;font-weight:600}
 .controls label{display:block;margin:8px 0 3px;font-size:12px;color:#8891a5}
 .controls select,.controls input[type=text],.controls input[type=range]{width:100%;padding:8px;border:1px solid #333;border-radius:8px;background:#0a0e16;color:#fff;font-size:13px;outline:0}
 .controls select:focus,.controls input:focus{border-color:#1E88E5}
 .controls input[type=range]{-webkit-appearance:none;height:4px;border:none;background:#333;border-radius:2px;padding:0}
 .controls input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#1E88E5;cursor:pointer}
-.controls .row{display:flex;gap:8px;margin-top:12px}
-.controls .row button{flex:1;padding:8px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;background:#1E88E5;color:#fff;transition:filter .15s}
-.controls .row button:hover{filter:brightness(1.1)}
-.controls .row button.ghost{background:transparent;border:1px solid #333;color:#8891a5}
-.controls .row button.ghost:hover{background:#1a1a2e}
-.controls .note{font-size:11px;color:#666;margin-top:8px;padding:8px;background:#0a0e16;border-radius:6px}
+.controls .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+.controls .grid button{padding:8px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:#1E88E5;color:#fff;white-space:nowrap}
+.controls .grid button:hover{filter:brightness(1.1)}
+.controls .grid button.ghost{background:transparent;border:1px solid #333;color:#8891a5}
+.controls .grid button.red{background:#E53935}
+.controls .grid button.green{background:#4CAF50}
+.controls .note{font-size:11px;color:#666;margin-top:10px;padding:8px;background:#0a0e16;border-radius:6px;line-height:1.5}
 </style>
 </head>
 <body>
 
-<!-- 圆盘 -->
 <div class="dial" id="dial">
   <div class="bg" id="dialBg" style="background:#2a2d3a"></div>
-  <!-- 弧线 -->
   <svg class="arc" viewBox="0 0 344 344">
     <circle class="arc-track" cx="172" cy="172" r="162"/>
     <circle class="arc-fill" id="arcFill" cx="172" cy="172" r="162"
       stroke="#4CAF50" stroke-dasharray="1018" stroke-dashoffset="1018"/>
   </svg>
-  <!-- 主内容 -->
+
+  <div class="queue-indicator" id="queueBadge">3 待处理</div>
+
   <div class="content" id="mainContent">
+    <div class="clock" id="clockDisplay">10:42</div>
+    <div class="clock-sub" id="clockSub">空闲中</div>
     <div class="icon" id="phaseIcon">⏸</div>
     <div class="title" id="titleText">DSH</div>
-    <div class="detail" id="detailText">等待命令…</div>
+    <div class="detail" id="detailText">今天已完成 5 个任务</div>
+    <div class="result-box" id="resultBox" style="display:none">上次: 翻译文档 → 完成</div>
   </div>
-  <div class="brand">DSH DIAL</div>
 
-  <!-- 审批覆盖层 -->
+  <div class="status-bar">
+    <div class="item"><span class="dot on" id="statusDot"></span><span id="statusLabel">已连接</span></div>
+    <div class="item"><span id="wifiLabel">▂▃▄▆█</span></div>
+    <div class="battery"><span id="battPct">85%</span><div class="bar"><div id="battFill" style="width:85%"></div></div></div>
+  </div>
+
   <div class="ask-overlay" id="askOverlay">
-    <div class="ask-icon">⚠️</div>
+    <div class="ask-agent" id="askAgent">来自: 文件审查助手</div>
     <div class="ask-title" id="askTitle">需要审批</div>
-    <div class="ask-body" id="askBody">确认执行以下命令？</div>
+    <div class="ask-body" id="askBody">此操作将删除 /tmp/cache 目录下的所有文件，确认继续？</div>
+    <div class="ask-timeout" id="askTimeout">30 秒后自动拒绝</div>
     <div class="ask-btns">
-      <button class="ask-btn allow">允许</button>
       <button class="ask-btn deny">拒绝</button>
+      <button class="ask-btn allow">允许</button>
     </div>
   </div>
 
-  <!-- 配网覆盖层 -->
   <div class="prov-overlay" id="provOverlay">
-    <div class="prov-title" id="provTitle">首次配置 · 手机扫码连接</div>
-    <div class="prov-qr">
-      <svg viewBox="0 0 33 33"><rect width="33" height="33" fill="#fff"/>
-        <path d="M4 4h4v4H4zM12 4h4v4h-4zM20 4h4v4h-4zM4 12h4v4H4zM12 12h4v4h-4zM20 12h4v4h-4zM4 20h4v4H4zM12 20h4v4h-4zM20 20h4v4h-4zM8 8h4v4H8zM16 8h4v4h-4zM24 8h4v4h-4zM8 16h4v4H8zM16 16h4v4h-4zM24 16h4v4h-4zM8 24h4v4H8zM16 24h4v4h-4zM24 24h4v4h-4z" fill="#111"/>
-        <path d="M4 28h4v4H4zM12 28h4v4h-4zM20 28h4v4h-4zM28 28h4v4h-4zM28 4h4v4h-4zM28 12h4v4h-4zM28 20h4v4h-4z" fill="#111"/>
-      </svg>
-    </div>
-    <div class="prov-creds" id="provCreds">DSH-Dial-XXXX / 12345678</div>
-    <div class="prov-url" id="provUrl">http://192.168.4.1</div>
+    <div class="prov-title">首次配置 · 手机扫码连接</div>
+    <div class="prov-qr"><svg viewBox="0 0 33 33"><rect width="33" height="33" fill="#fff"/>
+      <path d="M4 4h4v4H4zM12 4h4v4h-4zM20 4h4v4h-4zM4 12h4v4H4zM12 12h4v4h-4zM20 12h4v4h-4zM4 20h4v4H4zM12 20h4v4h-4zM20 20h4v4h-4zM8 8h4v4H8zM16 8h4v4h-4zM24 8h4v4h-4zM8 16h4v4H8zM16 16h4v4h-4zM24 16h4v4h-4zM8 24h4v4H8zM16 24h4v4h-4zM24 24h4v4h-4z" fill="#111"/>
+      <path d="M4 28h4v4H4zM12 28h4v4h-4zM20 28h4v4h-4zM28 28h4v4h-4zM28 4h4v4h-4zM28 12h4v4h-4zM28 20h4v4h-4z" fill="#111"/></svg></div>
+    <div class="prov-creds">DSH-Dial-A3B2 / 8732abcd</div>
+    <div class="prov-url">http://192.168.4.1</div>
+    <div class="prov-status" id="provStatus">等待连接…</div>
   </div>
 </div>
 
-<!-- 控制面板 -->
 <div class="controls">
-  <h2>🎛 状态切换</h2>
-  <label>当前状态</label>
+  <h2>状态切换</h2>
+  <label>状态</label>
   <select id="phaseSelect">
-    <option value="idle">空闲 (Idle) — 灰色·⏸</option>
-    <option value="working" selected>工作中 (Working) — 蓝色·⏳</option>
-    <option value="waiting">审批中 (Waiting) — 黄色·⚠️</option>
-    <option value="done">已完成 (Done) — 绿色·✓</option>
-    <option value="error">出错 (Error) — 红色·✕</option>
-    <option value="offline">离线 (Offline) — 灰色·🔌</option>
+    <option value="idle">空闲 — 时钟 + 今日统计</option>
+    <option value="working" selected>工作中 — 标题 + 进度</option>
+    <option value="done">已完成 — 结果摘要</option>
+    <option value="error">出错 — 错误原因</option>
+    <option value="waiting">审批中 — 黄色覆盖层</option>
+    <option value="offline">离线 — 断连</option>
   </select>
-  <label>上下文压力 (ctx)</label>
-  <input type="range" id="ctxSlider" min="0" max="100" value="30">
-  <label>会话标题</label>
+  <label>标题</label>
   <input type="text" id="titleInput" value="询问 AI 助手身份">
   <label>详情</label>
   <input type="text" id="detailInput" value="正在向 AI 助手发送身份确认请求…">
-  <div class="row">
-    <button onclick="showAsk()">显示审批</button>
-    <button class="ghost" onclick="hideAsk()">关闭审批</button>
+  <label>上下文压力</label>
+  <input type="range" id="ctxSlider" min="0" max="100" value="25">
+
+  <div class="grid">
+    <button onclick="setState('idle')" class="ghost">空闲</button>
+    <button onclick="setState('working')">工作中</button>
+    <button onclick="setState('done')" class="green">完成</button>
+    <button onclick="setState('error')" class="red">出错</button>
+    <button onclick="showAsk()" class="ghost">显示审批</button>
+    <button onclick="hideAsk()" class="ghost">关闭审批</button>
+    <button onclick="showProv()" class="ghost">配网界面</button>
+    <button onclick="hideProv()" class="ghost">关闭配网</button>
   </div>
-  <div class="row">
-    <button onclick="showProv()">显示配网</button>
-    <button class="ghost" onclick="hideProv()">关闭配网</button>
+
+  <label style="margin-top:12px">队列徽标（留空隐藏）</label>
+  <input type="text" id="queueInput" value="3 待处理">
+  <label>电池</label>
+  <input type="range" id="battSlider" min="0" max="100" value="85">
+  <label>连接状态</label>
+  <select id="connSelect">
+    <option value="on">已连接</option>
+    <option value="off">离线</option>
+  </select>
+
+  <div class="note">
+    这版新增的：常驻底栏（连接/信号/电量）、右上队列徽标、空闲态大时钟与今日统计、
+    完成与出错时的结果摘要行、审批弹窗的来源与倒计时。
   </div>
-  <div class="note">💡 圆盘 360×360 圆形屏幕模拟。审批和配网会覆盖主界面。</div>
 </div>
 
 <script>
 const $ = id => document.getElementById(id);
-const dial = $('dial');
-const bg = $('dialBg');
-const icon = $('phaseIcon');
-const titleText = $('titleText');
-const detailText = $('detailText');
-const arcFill = $('arcFill');
-const askOverlay = $('askOverlay');
-const provOverlay = $('provOverlay');
-const arcLen = 1018; // 2*PI*162
+const bg = $('dialBg'), icon = $('phaseIcon'), titleText = $('titleText'), detailText = $('detailText');
+const arcFill = $('arcFill'), arcLen = 1018;
+const queueBadge = $('queueBadge'), clockDisplay = $('clockDisplay'), clockSub = $('clockSub');
+const resultBox = $('resultBox'), statusDot = $('statusDot'), statusLabel = $('statusLabel');
+const battFill = $('battFill'), battPct = $('battPct'), wifiLabel = $('wifiLabel');
+const askOverlay = $('askOverlay'), provOverlay = $('provOverlay');
 
-const states = {
-  idle:    { icon:'⏸',  bg:'#2a2d3a', arc:'#4CAF50', title:'', detail:'等待命令' },
-  working: { icon:'⏳',  bg:'#1E88E5', arc:'#1E88E5', title:'', detail:'正在执行…' },
-  waiting: { icon:'⚠️', bg:'#F5C518', arc:'#F5C518', title:'', detail:'等待你的决定' },
-  done:    { icon:'✓',  bg:'#1b5e20', arc:'#4CAF50', title:'', detail:'已完成' },
-  error:   { icon:'✕',  bg:'#b71c1c', arc:'#E53935', title:'', detail:'出错了' },
-  offline: { icon:'🔌', bg:'#1a1a2e', arc:'#666',    title:'', detail:'连接断开' },
-};
+function setState(phase){
+  $('phaseSelect').value = phase;
+  updateUI();
+}
+
+function hhmm(){
+  const n = new Date();
+  return n.getHours().toString().padStart(2,'0') + ':' + n.getMinutes().toString().padStart(2,'0');
+}
 
 function updateUI(){
   const phase = $('phaseSelect').value;
-  const s = states[phase];
   const ctx = parseInt($('ctxSlider').value);
-  const title = $('titleInput').value || s.title;
-  const detail = $('detailInput').value || s.detail;
-  
-  bg.style.background = s.bg;
-  icon.textContent = s.icon;
-  titleText.textContent = title;
-  detailText.textContent = detail;
-  detailText.className = 'detail' + (phase==='done'?' ok':phase==='error'?' err':'');
-  
-  arcFill.style.stroke = s.arc;
+  const title = $('titleInput').value || 'DSH';
+  const detail = $('detailInput').value || '';
+  const queue = $('queueInput').value.trim();
+  const batt = parseInt($('battSlider').value);
+  const conn = $('connSelect').value;
+
+  queueBadge.textContent = queue;
+  queueBadge.style.display = queue ? 'flex' : 'none';
+
+  const showClock = (phase === 'idle' || phase === 'offline');
+  clockDisplay.style.display = showClock ? 'block' : 'none';
+  clockSub.style.display = showClock ? 'block' : 'none';
+  icon.style.display = showClock ? 'none' : 'block';
+
+  switch(phase){
+    case 'idle':
+      bg.style.background = '#2a2d3a';
+      clockDisplay.textContent = hhmm();
+      clockSub.textContent = '空闲中 · 今天 5 个任务';
+      titleText.textContent = 'DSH';
+      detailText.textContent = '长按圆盘重新配网';
+      detailText.className = 'detail';
+      resultBox.style.display = 'none';
+      arcFill.style.stroke = '#4CAF50';
+      break;
+    case 'working':
+      bg.style.background = '#1E88E5';
+      icon.textContent = '⏳';
+      titleText.textContent = title;
+      detailText.textContent = detail;
+      detailText.className = 'detail';
+      resultBox.style.display = 'none';
+      arcFill.style.stroke = '#1E88E5';
+      break;
+    case 'done':
+      bg.style.background = '#1b5e20';
+      icon.textContent = '✓';
+      titleText.textContent = title;
+      detailText.textContent = '已完成';
+      detailText.className = 'detail ok';
+      resultBox.style.display = 'block';
+      resultBox.textContent = '结果: 身份确认成功 (用时 3.2s)';
+      arcFill.style.stroke = '#4CAF50';
+      break;
+    case 'error':
+      bg.style.background = '#b71c1c';
+      icon.textContent = '✕';
+      titleText.textContent = title;
+      detailText.textContent = '操作失败';
+      detailText.className = 'detail err';
+      resultBox.style.display = 'block';
+      resultBox.textContent = '错误: 连接超时，请检查网络';
+      arcFill.style.stroke = '#E53935';
+      break;
+    case 'waiting':
+      bg.style.background = '#F5C518';
+      icon.textContent = '⚠️';
+      titleText.textContent = title;
+      detailText.textContent = '等待你的决定';
+      detailText.className = 'detail';
+      resultBox.style.display = 'none';
+      arcFill.style.stroke = '#F5C518';
+      break;
+    case 'offline':
+      bg.style.background = '#1a1a2e';
+      clockDisplay.textContent = hhmm();
+      clockSub.textContent = '离线 · 正在重连';
+      titleText.textContent = 'DSH';
+      detailText.textContent = '与桥接断开';
+      detailText.className = 'detail';
+      resultBox.style.display = 'none';
+      arcFill.style.stroke = '#666';
+      break;
+  }
+
   arcFill.style.strokeDashoffset = arcLen * (1 - ctx/100);
-  
-  askOverlay.classList.remove('show');
+
+  statusDot.className = conn === 'on' ? 'dot on' : 'dot off';
+  statusLabel.textContent = conn === 'on' ? '已连接' : '离线';
+  wifiLabel.textContent = conn === 'on' ? '▂▃▄▆█' : '无信号';
+  battPct.textContent = batt + '%';
+  battFill.style.width = batt + '%';
+  battFill.className = batt < 20 ? 'low' : '';
+
+  if(phase === 'waiting'){ showAsk(); } else { hideAsk(); }
   provOverlay.classList.remove('show');
 }
 
-$('phaseSelect').addEventListener('change', updateUI);
-$('ctxSlider').addEventListener('input', updateUI);
-$('titleInput').addEventListener('input', updateUI);
-$('detailInput').addEventListener('input', updateUI);
+['phaseSelect','ctxSlider','titleInput','detailInput','queueInput','battSlider','connSelect']
+  .forEach(id => $(id).addEventListener(id.endsWith('Select') ? 'change' : 'input', updateUI));
 
-function showAsk(){
-  askOverlay.classList.add('show');
-  provOverlay.classList.remove('show');
-}
-function hideAsk(){
-  askOverlay.classList.remove('show');
-}
-function showProv(){
-  provOverlay.classList.add('show');
-  askOverlay.classList.remove('show');
-}
-function hideProv(){
-  provOverlay.classList.remove('show');
-}
+function showAsk(){ askOverlay.classList.add('show'); provOverlay.classList.remove('show'); }
+function hideAsk(){ askOverlay.classList.remove('show'); }
+function showProv(){ provOverlay.classList.add('show'); askOverlay.classList.remove('show'); }
+function hideProv(){ provOverlay.classList.remove('show'); }
+
+setInterval(() => {
+  const p = $('phaseSelect').value;
+  if(p === 'idle' || p === 'offline') clockDisplay.textContent = hhmm();
+}, 10000);
 
 updateUI();
 </script>
