@@ -3,11 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DSH 圆盘 UI 模拟 v5 — 完整版</title>
+<title>DSH 圆盘 UI 模拟 v6 — 空闲侧边状态</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#1a1a2e;display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;gap:40px;flex-wrap:wrap;padding:20px}
-/* 圆盘 */
 .dial{width:360px;height:360px;border-radius:50%;background:#0D111D;position:relative;overflow:hidden;box-shadow:0 0 60px rgba(0,0,0,.5),inset 0 0 30px rgba(0,0,0,.3);flex:none}
 .dial .bg{position:absolute;inset:0;border-radius:50%;transition:background .6s}
 .arc{position:absolute;top:8px;left:8px;right:8px;bottom:8px;border-radius:50%;pointer-events:none}
@@ -20,6 +19,7 @@ body{background:#1a1a2e;display:flex;justify-content:center;align-items:center;m
 .title{font-size:16px;font-weight:600;color:#fff;margin-bottom:2px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .clock{font-size:38px;font-weight:300;color:#fff;letter-spacing:1px;font-variant-numeric:tabular-nums;line-height:1.1}
 .clock-sub{font-size:12px;color:#8891a5;margin-top:2px}
+
 /* 工作态事件列表 */
 .event-list{width:100%;display:flex;flex-direction:column;gap:5px;margin-top:4px}
 .evt{display:flex;align-items:center;gap:7px;background:rgba(0,0,0,.22);border-radius:8px;padding:5px 10px;font-size:11px;color:#cce6ff;text-align:left;max-width:280px;width:100%}
@@ -27,11 +27,29 @@ body{background:#1a1a2e;display:flex;justify-content:center;align-items:center;m
 .evt .tx{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
 .evt.done{opacity:.55}
 .evt.now{background:rgba(255,255,255,.14);color:#fff;font-weight:600;box-shadow:0 0 0 1px rgba(255,255,255,.2)}
-/* 空闲态统计滚动条 */
+
+/* 空闲态侧边状态列 — 替代底部状态栏 */
+.idle-side{position:absolute;inset:0;z-index:3;display:none;pointer-events:none}
+.idle-side.show{display:block}
+.idle-side .col{position:absolute;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:8px;font-size:11px;color:#8891a5}
+.idle-side .col.left{right:196px;align-items:flex-end}
+.idle-side .col.right{left:196px;align-items:flex-start}
+.idle-side .row{display:flex;align-items:center;gap:4px;line-height:1.2;white-space:nowrap}
+.idle-side .dot{width:6px;height:6px;border-radius:50%;display:inline-block;flex:none}
+.idle-side .dot.on{background:#4CAF50}
+.idle-side .dot.off{background:#666}
+.idle-side .ctx-bar{width:50px;height:4px;border-radius:2px;background:#1a1a2e;overflow:hidden;flex:none}
+.idle-side .ctx-bar div{height:100%;border-radius:2px;background:#1E88E5;transition:width .5s}
+.idle-side .batt-bar{width:16px;height:8px;border:1px solid #3a3f52;border-radius:2px;padding:1px;display:flex;flex:none}
+.idle-side .batt-bar div{height:100%;border-radius:1px;background:#4CAF50;transition:width .5s}
+.idle-side .batt-bar div.low{background:#E53935}
+
+/* 空闲统计滚动条 — 仍在底部 */
 .ticker{position:absolute;bottom:38px;left:0;right:0;z-index:3;overflow:hidden;height:22px;display:flex;align-items:center;pointer-events:none}
 .ticker .roll{display:inline-block;white-space:nowrap;padding-left:100%;animation:roll 22s linear infinite;font-size:12px;color:#8891a5}
 @keyframes roll{0%{transform:translateX(0)}100%{transform:translateX(-100%)}}
-/* 底部状态栏 */
+
+/* 底部状态栏 — 非空闲时使用 */
 .status-bar{position:absolute;bottom:10px;left:16px;right:16px;display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#3a3f52;z-index:3;pointer-events:none}
 .status-bar .item{display:flex;align-items:center;gap:3px}
 .status-bar .dot{width:6px;height:6px;border-radius:50%;display:inline-block}
@@ -42,7 +60,8 @@ body{background:#1a1a2e;display:flex;justify-content:center;align-items:center;m
 .status-bar .battery .bar div{height:100%;border-radius:1px;background:#4CAF50}
 .status-bar .battery .bar div.low{background:#E53935}
 .queue-indicator{position:absolute;top:10px;right:14px;background:rgba(0,0,0,.3);border-radius:10px;padding:2px 8px;font-size:10px;color:#8891a5;z-index:3;display:none;align-items:center;gap:4px}
-/* 审批弹窗 — 圆内竖排，按钮在安全区 */
+
+/* 审批弹窗 */
 .ask-overlay{position:absolute;inset:0;border-radius:50%;z-index:5;display:none;flex-direction:column;align-items:center;padding:26px 26px 18px;background:#F5C518}
 .ask-overlay.show{display:flex}
 .ask-top{width:100%;text-align:center}
@@ -57,14 +76,14 @@ body{background:#1a1a2e;display:flex;justify-content:center;align-items:center;m
 .opt.danger{background:#fff;color:#b71c1c;border:2px solid #b71c1c}
 .opt.primary{background:#1b5e20;color:#fff}
 .opt.neutral{background:#fff;color:#1a1a2e;border:2px solid #8a6d00}
-.opt.danger::after{content:'✕';font-weight:700}
-.opt.primary::after{content:'✓';font-weight:700}
-.opt.neutral::after{content:'›'}
-/* 语音按钮 — 新：审批弹窗底部，按住说话 */
+.opt.danger::after{content:'\2715';font-weight:700}
+.opt.primary::after{content:'\2713';font-weight:700}
+.opt.neutral::after{content:'\203A'}
 .voice-btn{width:72px;height:72px;border-radius:50%;border:3px solid #8a6d00;background:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:26px;transition:all .2s;color:#8a6d00;flex:none}
 .voice-btn:active,.voice-btn.rec{transform:scale(1.05);border-color:#b71c1c;color:#b71c1c;box-shadow:0 0 16px rgba(183,28,28,.35);animation:pulse 1s infinite}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(183,28,28,.35)}50%{box-shadow:0 0 0 10px rgba(183,28,28,0)}}
 .voice-btn .label{font-size:8px;font-weight:700;margin-top:1px;color:inherit}
+
 /* 配网 */
 .prov-overlay{position:absolute;inset:0;border-radius:50%;z-index:5;display:none;flex-direction:column;align-items:center;justify-content:center;padding:20px;background:#1E88E5}
 .prov-overlay.show{display:flex}
@@ -73,6 +92,7 @@ body{background:#1a1a2e;display:flex;justify-content:center;align-items:center;m
 .prov-qr svg{width:120px;height:120px}
 .prov-creds{font-size:12px;color:#cce6ff;text-align:center;margin-bottom:2px;word-break:break-all}
 .prov-url{font-size:13px;color:#ffd97a;font-weight:600}
+
 /* 控件 */
 .controls{background:#151a28;border:1px solid #252c3d;border-radius:16px;padding:24px;width:350px;color:#e8eaf0}
 .controls h2{font-size:14px;margin-bottom:12px;color:#8891a5;font-weight:600}
@@ -100,6 +120,20 @@ body{background:#1a1a2e;display:flex;justify-content:center;align-items:center;m
 
   <div class="queue-indicator" id="queueBadge">3 待处理</div>
 
+  <!-- 空闲侧边状态列 — 时钟两侧，固定位置不漂移 -->
+  <div class="idle-side" id="idleSide">
+    <!-- 左列：右对齐 -->
+    <div class="col left">
+      <div class="row"><span class="dot on" id="idleStatusDot"></span><span id="idleStatusTxt">已连接</span></div>
+      <div class="row"><span id="idleCtxTxt">上下文 41%</span><span class="ctx-bar"><div id="idleCtxBar" style="width:41%"></div></span></div>
+    </div>
+    <!-- 右列：左对齐 -->
+    <div class="col right">
+      <div class="row"><span class="batt-bar"><div id="idleBattBar" style="width:85%"></div></span><span id="idleBattTxt">85%</span></div>
+      <div class="row"><span id="idleSessTxt">4 会话</span></div>
+    </div>
+  </div>
+
   <!-- 主内容 -->
   <div class="content" id="mainContent">
     <div class="clock" id="clockDisplay" style="display:none">10:42</div>
@@ -111,11 +145,11 @@ body{background:#1a1a2e;display:flex;justify-content:center;align-items:center;m
 
   <!-- 空闲统计滚动条 -->
   <div class="ticker" id="ticker" style="display:none">
-    <div class="roll" id="tickerText">113 轮 · 1227 步 │ LLM 591m48s · 工具调用 304m33s │ 首 token 平均 22.3s · 86 tok/s │ 缓存命中 67% │ 输入 157M tok · 输出 779k tok</div>
+    <div class="roll" id="tickerText">113 轮 · 1227 步 | LLM 591m48s · 工具调用 304m33s | 首 token 平均 22.3s · 86 tok/s | 缓存命中 67% | 输入 157M tok · 输出 779k tok</div>
   </div>
 
-  <!-- 底部状态栏 -->
-  <div class="status-bar">
+  <!-- 底部状态栏 — 非空闲时使用 -->
+  <div class="status-bar" id="statusBar">
     <div class="item"><span class="dot on" id="statusDot"></span><span id="statusLabel">已连接</span></div>
     <div class="item"><span id="wifiLabel">▂▃▄▆█</span></div>
     <div class="battery"><span id="battPct">85%</span><div class="bar"><div id="battFill" style="width:85%"></div></div></div>
@@ -144,11 +178,11 @@ body{background:#1a1a2e;display:flex;justify-content:center;align-items:center;m
 </div>
 
 <div class="controls">
-  <h2>完整布局预览 v5</h2>
+  <h2>完整布局预览 v6 — 空闲侧边状态</h2>
   <label>状态</label>
   <select id="phaseSelect">
     <option value="working" selected>工作中 — 工具调用事件列表</option>
-    <option value="idle">空闲 — 时钟 + 统计滚动条</option>
+    <option value="idle">空闲 — 时钟 + 侧边状态列 + 统计滚动条</option>
     <option value="done">已完成</option>
     <option value="error">出错</option>
     <option value="offline">离线</option>
@@ -176,10 +210,10 @@ body{background:#1a1a2e;display:flex;justify-content:center;align-items:center;m
   <label>电池</label>
   <input type="range" id="battSlider" min="0" max="100" value="85">
   <div class="note">
-    <b>工作中</b>：中间显示工具调用事件流，最新一条高亮（白框），已完成的半透明。<br>
-    <b>空闲</b>：大时钟 + 底部统计信息滚动条（DSH 真实数据格式）。<br>
-    <b>审批</b>：选项竖排在圆内安全区；语音按钮在底部，按住说话。<br>
-    <b>语音</b>: 按钮模拟按住→红脉冲→松开→识别中→结果。
+    <b>v6 改动</b>：空闲时底栏状态移到时钟两侧列，固定位置不漂移。<br>
+    ● 左列：连接状态 + 上下文压力（带进度条）<br>
+    ● 右列：电量 + 会话数<br>
+    ● 底部滚动条保留显示统计信息
   </div>
 </div>
 
@@ -194,6 +228,10 @@ const battFill = $('battFill'), battPct = $('battPct'), wifiLabel = $('wifiLabel
 const askOverlay = $('askOverlay'), askMain = $('askMain');
 const askAgent = $('askAgent'), askTitle = $('askTitle'), askSub = $('askSub'), askBody = $('askBody');
 const queueBadge = $('queueBadge');
+const idleSide = $('idleSide'), statusBar = $('statusBar');
+const idleStatusDot = $('idleStatusDot'), idleStatusTxt = $('idleStatusTxt');
+const idleCtxTxt = $('idleCtxTxt'), idleCtxBar = $('idleCtxBar');
+const idleBattBar = $('idleBattBar'), idleBattTxt = $('idleBattTxt'), idleSessTxt = $('idleSessTxt');
 
 const EVENTS = [
   { ic:'📄', tx:'读取 src/config.yml', done:true },
@@ -235,16 +273,30 @@ function updateUI(){
   hideAsk(); hideProv();
 
   const showClock = phase === 'idle' || phase === 'offline';
+  const isIdle = phase === 'idle';
   clockDisplay.style.display = showClock ? 'block' : 'none';
   clockSub.style.display = showClock ? 'block' : 'none';
   icon.style.display = showClock ? 'none' : 'block';
-  ticker.style.display = (phase === 'idle') ? 'flex' : 'none';
+  ticker.style.display = isIdle ? 'flex' : 'none';
+  idleSide.className = 'idle-side' + (isIdle ? ' show' : '');
+  statusBar.style.display = isIdle ? 'none' : 'flex';
+
+  // 更新侧边状态列
+  const isOffline = phase === 'offline';
+  idleStatusDot.className = 'dot ' + (isOffline ? 'off' : 'on');
+  idleStatusTxt.textContent = isOffline ? '离线' : '已连接';
+  idleCtxTxt.textContent = '上下文 ' + ctx + '%';
+  idleCtxBar.style.width = ctx + '%';
+  idleBattBar.style.width = batt + '%';
+  idleBattBar.className = batt < 20 ? 'low' : '';
+  idleBattTxt.textContent = batt + '%';
+  idleSessTxt.textContent = '4 会话';
 
   switch(phase){
     case 'idle':
       bg.style.background = '#2a2d3a';
       clockDisplay.textContent = hhmm();
-      clockSub.textContent = '空闲中 · 今天 5 个任务';
+      clockSub.textContent = '空闲中';
       icon.textContent = '⏸';
       titleText.textContent = 'DSH';
       eventList.innerHTML = '';
@@ -276,7 +328,7 @@ function updateUI(){
     case 'offline':
       bg.style.background = '#1a1a2e';
       clockDisplay.textContent = hhmm();
-      clockSub.textContent = '离线 · 正在重连';
+      clockSub.textContent = '正在重连';
       icon.textContent = '🔌';
       titleText.textContent = 'DSH';
       eventList.innerHTML = '';
@@ -355,7 +407,6 @@ function showAskFromSelect(){
 function simulateVoice(){
   showAskFromSelect();
   const t = $('askSelect').value;
-  // 强制显示语音按钮场景
   $('askSelect').value = 'twoV';
   showAskFromSelect();
   const vb = document.getElementById('voiceBtn');

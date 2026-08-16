@@ -276,10 +276,21 @@ function deriveState(snapshot, previous) {
 		running: nowRunning,
 		acts: formatActivity(liveFacts.jobs),
 		stats: phase === "idle" ? formatStats(values) : "",
+		// The idle screen shows a clock, and the dial has no real-time clock chip
+		// and no NTP client — so the time has to arrive with the state. Sending it
+		// only when idle would leave the display stale for the first second after
+		// work ends, so it rides every frame.
+		clock: clockText(),
 		seq: active?.projections?.asOfSeq ?? 0,
 		// carried for the next derivation, not sent to the device
 		stoppedAt: nowRunning === 0 && wasRunning ? Date.now() : (previous?.stoppedAt ?? 0),
 	};
+}
+
+/** Wall-clock HH:MM on the DSH host, for the dial's idle face. */
+function clockText() {
+	const now = new Date();
+	return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 }
 
 /**
@@ -394,10 +405,20 @@ const pendingAsks = new Map();
 let lastState;
 let dshOnline = false;
 
-/** Send one JSON frame to one device. */
+/**
+ * Send one JSON frame to one device.
+ *
+ * State frames get that device's own battery reading spliced in. Battery is
+ * per-device telemetry the dial reported to us, not a property of DSH, so it
+ * cannot ride the shared broadcast object — two dials on one bridge have two
+ * different batteries. Splicing here is what puts a number in the footer.
+ */
 function send(device, frame) {
 	try {
-		device.socket.write(encodeFrame(JSON.stringify(frame)));
+		const wire = frame.t === "state" && device.battery !== undefined
+			? { ...frame, battery: device.battery }
+			: frame;
+		device.socket.write(encodeFrame(JSON.stringify(wire)));
 	} catch {
 		devices.delete(device);
 	}
@@ -443,7 +464,10 @@ async function tick() {
 		// The activity list and the idle ticker are the two fields a person
 		// actually watches change, so they must gate the send like the rest.
 		next.stats !== lastState.stats ||
-		JSON.stringify(next.acts) !== JSON.stringify(lastState.acts);
+		JSON.stringify(next.acts) !== JSON.stringify(lastState.acts) ||
+		// A minute boundary moves the idle clock; without this, the frame goes
+		// out only when some other field changes and the clock visibly freezes.
+		next.clock !== lastState.clock;
 
 	lastState = next;
 	if (changed) {

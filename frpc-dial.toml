@@ -30,9 +30,14 @@ remotePort = 7001
 #
 # The bridge checks its 32-hex device token in constant time, so exposing this
 # publicly is only as safe as that token staying secret.
+# Points at 3083, not 3082: an older bridge process still holds 3082 and cannot
+# be killed from this session (it was started outside it, so Stop-Process and
+# taskkill both return Access denied). That stale process serves pre-acts/stats
+# frames, which is why the dial showed colour changes and nothing else. Moving
+# the tunnel is what actually puts the current bridge in front of the dial.
 [[proxies]]
 name = "dsh-dial-bridge"
 type = "tcp"
 localIP = "127.0.0.1"
-localPort = 3082
+localPort = 3083
 remotePort = 7002
