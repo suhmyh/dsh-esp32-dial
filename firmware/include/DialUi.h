@@ -178,6 +178,18 @@ class DialUi {
   void onAskButton(uint8_t index);
   void onBackgroundLongPress();
 
+  /**
+   * LVGL click trampoline for the ask buttons.
+   *
+   * A static member rather than a free function so it can reach the private
+   * handlers above; the chosen option index rides in the event's user data, so
+   * one callback serves every button.
+   */
+  static void askButtonClicked(lv_event_t* event);
+
+  /** LVGL long-press trampoline for the dial background. */
+  static void backgroundLongPressed(lv_event_t* event);
+
   // LVGL style
   static lv_style_t mainStyle_;
   static bool stylesInitialised_;

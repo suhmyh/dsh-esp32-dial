@@ -8,7 +8,7 @@
 #include <DNSServer.h>
 #include <WebServer.h>
 #include <WiFi.h>
-#include <esp_efuse.h>
+#include <esp_mac.h>
 #include <mbedtls/md.h>
 
 #include "Config.h"
@@ -20,7 +20,7 @@ namespace {
 DNSServer dnsServer;
 WebServer httpServer(80);
 
-constexpr const char* kHtmlForm = R"(
+constexpr const char* kHtmlForm = R"html(
 <!DOCTYPE html>
 <html lang="zh">
 <head>
@@ -104,7 +104,7 @@ async function save(ev){
 </script>
 </body>
 </html>
-)";
+)html";
 }  // namespace
 
 // ── credential derivation ──────────────────────────────────────────────────

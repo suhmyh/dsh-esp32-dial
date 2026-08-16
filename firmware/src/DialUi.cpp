@@ -93,9 +93,8 @@ void DialUi::buildMainScreen() {
   // A long press anywhere on the dial re-opens provisioning, so a change of
   // network never forces a cable. The arc above swallows its own presses, so
   // the gesture has to live on the full-screen background.
-  lv_obj_add_event_cb(statusBg_, [](lv_event_t* event) {
-    dialUi.onBackgroundLongPress();
-  }, LV_EVENT_LONG_PRESSED, nullptr);
+  lv_obj_add_event_cb(statusBg_, DialUi::backgroundLongPressed,
+                      LV_EVENT_LONG_PRESSED, nullptr);
 
   // Context pressure arc → outer ring, indicator mode.
   arc_ = lv_arc_create(scr);
@@ -173,7 +172,7 @@ void DialUi::buildAskOverlay() {
   lv_obj_set_size(askBtnAllow_, 120, 48);
   lv_obj_align(askBtnAllow_, LV_ALIGN_BOTTOM_MID, -70, -24);
   lv_obj_set_style_bg_color(askBtnAllow_, kGreen, 0);
-  lv_obj_add_event_cb(askBtnAllow_, askButtonClicked, LV_EVENT_CLICKED,
+  lv_obj_add_event_cb(askBtnAllow_, DialUi::askButtonClicked, LV_EVENT_CLICKED,
                       reinterpret_cast<void*>(static_cast<uintptr_t>(0)));
   lv_obj_t* lblAllow = lv_label_create(askBtnAllow_);
   lv_label_set_text(lblAllow, "允许");
@@ -184,7 +183,7 @@ void DialUi::buildAskOverlay() {
   lv_obj_set_size(askBtnDeny_, 120, 48);
   lv_obj_align(askBtnDeny_, LV_ALIGN_BOTTOM_MID, 70, -24);
   lv_obj_set_style_bg_color(askBtnDeny_, kRed, 0);
-  lv_obj_add_event_cb(askBtnDeny_, askButtonClicked, LV_EVENT_CLICKED,
+  lv_obj_add_event_cb(askBtnDeny_, DialUi::askButtonClicked, LV_EVENT_CLICKED,
                       reinterpret_cast<void*>(static_cast<uintptr_t>(1)));
   lv_obj_t* lblDeny = lv_label_create(askBtnDeny_);
   lv_label_set_text(lblDeny, "拒绝");
@@ -342,18 +341,23 @@ void DialUi::recordAnswer(const char* optionId) {
   pendingAnswer_ = strdup(optionId);
 }
 
-namespace {
-/**
- * LVGL click handler for the two ask buttons.
- *
- * The option index rides in the button's user data, so one handler serves both
- * and the mapping stays next to the layout that created them.
- */
-void askButtonClicked(lv_event_t* event) {
+// ── LVGL event trampolines ───────────────────────────────────────────────
+// LVGL fires plain C function pointers, so these static members forward into
+// the single dial instance. The option index rides in the event's user data,
+// which keeps one callback for however many buttons an ask may have.
+
+void DialUi::askButtonClicked(lv_event_t* event) {
   const auto index = reinterpret_cast<uintptr_t>(lv_event_get_user_data(event));
   dialUi.onAskButton(static_cast<uint8_t>(index));
 }
-}  // namespace
+
+void DialUi::backgroundLongPressed(lv_event_t* /*event*/) {
+  dialUi.onBackgroundLongPress();
+}
+
+void DialUi::backgroundLongPressed(lv_event_t* /*event*/) {
+  dialUi.onBackgroundLongPress();
+}
 
 /** Resolve a button index to its option id and record it. */
 void DialUi::onAskButton(uint8_t index) {
