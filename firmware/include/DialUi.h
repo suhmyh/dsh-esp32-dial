@@ -22,6 +22,7 @@
 enum class DialPhase : uint8_t {
   Idle,
   Working,
+  Thinking,   // LLM is generating / waiting for API response (no tool running)
   Waiting,
   Done,
   Error,
@@ -152,6 +153,7 @@ class DialUi {
   // LVGL objects
   lv_obj_t* arc_ = nullptr;          // context pressure ring
   lv_obj_t* phaseLabel_ = nullptr;   // phase icon (small, above the title)
+  lv_obj_t* whaleIcon_ = nullptr;   // DeepSeek whale image, top-right
   lv_obj_t* titleLabel_ = nullptr;   // session title
   lv_obj_t* detailLabel_ = nullptr;  // current action
   lv_obj_t* statusBg_ = nullptr;     // phase-colour background circle

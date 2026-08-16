@@ -13,6 +13,9 @@
 // Chinese characters this firmware renders, plus the ASCII range — no boxes.
 LV_FONT_DECLARE(dsh_font_cjk_16);
 
+// DeepSeek whale icon — a small 16×16 image shown on the idle screen.
+#include "WhaleIcon.h"
+
 // The QR widget comes from LVGL's extras, which `lvgl.h` already includes; it
 // exists only when lv_conf.h sets LV_USE_QRCODE, so fail loudly at compile time
 // rather than at runtime on a dial that cannot show its own setup code.
@@ -30,6 +33,7 @@ static constexpr lv_color_t kYellow = LV_COLOR_MAKE(0xFF, 0xCC, 0x00);
 static constexpr lv_color_t kGray = LV_COLOR_MAKE(0x55, 0x55, 0x55);
 static constexpr lv_color_t kWhite = LV_COLOR_MAKE(0xFF, 0xFF, 0xFF);
 static constexpr lv_color_t kDim = LV_COLOR_MAKE(0x22, 0x22, 0x33);
+static constexpr lv_color_t kPurple = LV_COLOR_MAKE(0x7C, 0x4D, 0xFF);  // thinking phase
 
 // ── static members ───────────────────────────────────────────────────────
 lv_style_t DialUi::mainStyle_;
@@ -47,12 +51,13 @@ static void arcAnimCb_(void* obj, int32_t v) {
 lv_color_t DialUi::colorForPhase(DialPhase phase, bool stale) {
   if (stale) return kGray;
   switch (phase) {
-    case DialPhase::Idle:     return kDim;
-    case DialPhase::Working:  return kBlue;
-    case DialPhase::Waiting:  return kYellow;
-    case DialPhase::Done:     return kGreen;
-    case DialPhase::Error:    return kRed;
-    case DialPhase::Offline:  return kGray;
+    case DialPhase::Idle:      return kDim;
+    case DialPhase::Working:   return kBlue;
+    case DialPhase::Thinking:  return kPurple;
+    case DialPhase::Waiting:   return kYellow;
+    case DialPhase::Done:      return kGreen;
+    case DialPhase::Error:     return kRed;
+    case DialPhase::Offline:   return kGray;
   }
   return kGray;
 }
@@ -147,6 +152,13 @@ void DialUi::buildMainScreen() {
   lv_obj_set_style_text_color(phaseLabel_, kWhite, 0);
   lv_label_set_text(phaseLabel_, LV_SYMBOL_MINUS);
 
+  // Small DeepSeek whale icon, top-right of the title area.
+  whaleIcon_ = lv_img_create(scr);
+  lv_img_set_src(whaleIcon_, &whaleIcon);
+  lv_obj_align(whaleIcon_, LV_ALIGN_TOP_RIGHT, -8, 60);
+  lv_obj_set_style_image_recolor(whaleIcon_, kWhite, 0);
+  lv_obj_set_style_image_recolor_opa(whaleIcon_, LV_OPA_COVER, 0);
+
   // Title — session title, under the icon.
   titleLabel_ = lv_label_create(scr);
   lv_obj_align(titleLabel_, LV_ALIGN_TOP_MID, 0, 88);
@@ -191,7 +203,7 @@ void DialUi::buildMainScreen() {
     lv_obj_set_style_text_font(idleColLeft_[i], &dsh_font_cjk_16, 0);
     lv_obj_set_style_text_color(idleColLeft_[i], kWhite, 0);
     lv_label_set_long_mode(idleColLeft_[i], LV_LABEL_LONG_DOT);
-    lv_obj_set_style_text_align(idleColLeft_[i], LV_TEXT_ALIGN_RIGHT, 0);
+    lv_obj_set_style_text_align(idleColLeft_[i], LV_TEXT_ALIGN_LEFT, 0);
     lv_label_set_text(idleColLeft_[i], "");
     lv_obj_add_flag(idleColLeft_[i], LV_OBJ_FLAG_HIDDEN);
 
@@ -201,7 +213,7 @@ void DialUi::buildMainScreen() {
     lv_obj_set_style_text_font(idleColRight_[i], &dsh_font_cjk_16, 0);
     lv_obj_set_style_text_color(idleColRight_[i], kWhite, 0);
     lv_label_set_long_mode(idleColRight_[i], LV_LABEL_LONG_DOT);
-    lv_obj_set_style_text_align(idleColRight_[i], LV_TEXT_ALIGN_LEFT, 0);
+    lv_obj_set_style_text_align(idleColRight_[i], LV_TEXT_ALIGN_RIGHT, 0);
     lv_label_set_text(idleColRight_[i], "");
     lv_obj_add_flag(idleColRight_[i], LV_OBJ_FLAG_HIDDEN);
   }
@@ -217,7 +229,7 @@ void DialUi::buildMainScreen() {
     lv_obj_set_style_text_font(idleNameLeft_[i], &dsh_font_cjk_16, 0);
     lv_obj_set_style_text_color(idleNameLeft_[i], kGray, 0);
     lv_label_set_long_mode(idleNameLeft_[i], LV_LABEL_LONG_DOT);
-    lv_obj_set_style_text_align(idleNameLeft_[i], LV_TEXT_ALIGN_RIGHT, 0);
+    lv_obj_set_style_text_align(idleNameLeft_[i], LV_TEXT_ALIGN_LEFT, 0);
     lv_label_set_text(idleNameLeft_[i], leftNames[i]);
     lv_obj_add_flag(idleNameLeft_[i], LV_OBJ_FLAG_HIDDEN);
 
@@ -228,7 +240,7 @@ void DialUi::buildMainScreen() {
     lv_obj_set_style_text_font(idleNameRight_[i], &dsh_font_cjk_16, 0);
     lv_obj_set_style_text_color(idleNameRight_[i], kGray, 0);
     lv_label_set_long_mode(idleNameRight_[i], LV_LABEL_LONG_DOT);
-    lv_obj_set_style_text_align(idleNameRight_[i], LV_TEXT_ALIGN_LEFT, 0);
+    lv_obj_set_style_text_align(idleNameRight_[i], LV_TEXT_ALIGN_RIGHT, 0);
     lv_label_set_text(idleNameRight_[i], rightNames[i]);
     lv_obj_add_flag(idleNameRight_[i], LV_OBJ_FLAG_HIDDEN);
   }
@@ -388,6 +400,7 @@ void DialUi::setState(const JsonDocument& doc) {
   DialPhase newPhase = DialPhase::Idle;
 
   if (strcmp(phaseStr, "working") == 0) newPhase = DialPhase::Working;
+  else if (strcmp(phaseStr, "thinking") == 0) newPhase = DialPhase::Thinking;
   else if (strcmp(phaseStr, "waiting") == 0) newPhase = DialPhase::Waiting;
   else if (strcmp(phaseStr, "done") == 0) newPhase = DialPhase::Done;
   else if (strcmp(phaseStr, "error") == 0) newPhase = DialPhase::Error;
@@ -420,6 +433,7 @@ void DialUi::setState(const JsonDocument& doc) {
   // Each phase owns a different centre: idle is a clock, working is the list of
   // what DSH is doing. Toggling visibility here keeps the two from overlapping.
   const bool idleFace = (newPhase == DialPhase::Idle ||
+                         newPhase == DialPhase::Thinking ||
                          newPhase == DialPhase::Offline);
   if (idleFace) {
     // Show the clock and its subtitle.
@@ -458,7 +472,8 @@ void DialUi::setState(const JsonDocument& doc) {
     const char* sub = doc["clockSub"] | "";
     lv_label_set_text(clockSubLabel_, strlen(sub) > 0 ? sub
                       : (newPhase == DialPhase::Offline ? "正在重连"
-                                                        : "空闲中"));
+                        : newPhase == DialPhase::Thinking ? "思考中"
+                                                          : "空闲中"));
   }
 
   // Populate the three-column stat rows from the structured `s` object.
@@ -623,13 +638,14 @@ void DialUi::setPhaseLabel(DialPhase phase) {
   // a glance, so the icon must never be a placeholder.
   const char* text;
   switch (phase) {
-    case DialPhase::Idle:    text = LV_SYMBOL_MINUS;    break;  // resting
-    case DialPhase::Working: text = LV_SYMBOL_REFRESH;  break;  // busy
-    case DialPhase::Waiting: text = LV_SYMBOL_WARNING;  break;  // needs you
-    case DialPhase::Done:    text = LV_SYMBOL_OK;       break;
-    case DialPhase::Error:   text = LV_SYMBOL_CLOSE;    break;
-    case DialPhase::Offline: text = LV_SYMBOL_EYE_CLOSE; break;  // link down
-    default:                 text = LV_SYMBOL_MINUS;    break;
+    case DialPhase::Idle:      text = LV_SYMBOL_MINUS;    break;  // resting
+    case DialPhase::Working:   text = LV_SYMBOL_REFRESH;  break;  // busy
+    case DialPhase::Thinking:  text = LV_SYMBOL_EYE_OPEN;  break;  // LLM thinking
+    case DialPhase::Waiting:   text = LV_SYMBOL_WARNING;  break;  // needs you
+    case DialPhase::Done:      text = LV_SYMBOL_OK;       break;
+    case DialPhase::Error:     text = LV_SYMBOL_CLOSE;    break;
+    case DialPhase::Offline:   text = LV_SYMBOL_EYE_CLOSE; break;  // link down
+    default:                   text = LV_SYMBOL_MINUS;    break;
   }
   lv_label_set_text(phaseLabel_, text);
 }

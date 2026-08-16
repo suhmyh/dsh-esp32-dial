@@ -331,7 +331,14 @@ function deriveState(snapshot, previous) {
 	const nowRunning = running.length;
 	let phase;
 	if (pendingAsks.size > 0) phase = "waiting";
-	else if (nowRunning > 0) phase = "working";
+	else if (nowRunning > 0) {
+		// A running session with no tool in flight means the LLM is generating
+		// (or waiting on the API). That is "thinking", distinct from executing
+		// a tool, so the dial can show it as its own phase.
+		const anyWorking = [...liveFacts.tools].some((t) => t.running === true)
+			|| liveFacts.jobs.some((j) => j.status === "running");
+		phase = anyWorking ? "working" : "thinking";
+	}
 	else if (wasRunning && Date.now() - (previous?.stoppedAt ?? 0) < CONFIG.doneHoldMs) phase = "done";
 	else phase = "idle";
 
