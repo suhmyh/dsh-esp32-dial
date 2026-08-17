@@ -407,7 +407,7 @@ function deriveState(snapshot, previous) {
 		// Each value is a short display-ready string; the firmware renders them
 		// into four fixed rows per side when the `s` field is present. Empty
 		// when not idle so the dial never shows stale stats during work.
-		s: phase === "idle" ? buildIdleStats(values) : null,
+		s: (phase === "idle" || phase === "thinking" || phase === "streaming") ? buildIdleStats(values) : null,
 		// The idle screen shows a clock, and the dial has no real-time clock chip
 		// and no NTP client — so the time has to arrive with the state. Sending it
 		// only when idle would leave the display stale for the first second after
