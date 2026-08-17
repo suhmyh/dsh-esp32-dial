@@ -344,11 +344,18 @@ function deriveState(snapshot, previous) {
 	let phase;
 	if (pendingAsks.size > 0) phase = "waiting";
 	else if (nowRunning > 0) {
-		// A running session with no tool in flight means the LLM is generating.
-		// assistant/chunk text-delta events tell us whether it is still thinking
-		// (waiting for the first token) or already streaming a reply.
-		const anyWorking = [...liveFacts.tools].some((t) => t.running === true)
-			|| liveFacts.jobs.some((j) => j.status === "running");
+		// Phase priority within a running session:
+		//   1. A tool is executing       → working (blue, activity list)
+		//   2. LLM text-deltas are flowing → streaming (输出中)
+		//   3. Neither — waiting on API   → thinking (思考中)
+		//
+		// NOTE: liveFacts.jobs is deliberately excluded from the "working" test.
+		// Those jobs include the bridge's own DSH subprocesses (this very tick
+		// runs inside one), which are always status:"running" — so counting
+		// them made `anyWorking` permanently true and trapped the dial on the
+		// blue working screen for the entire turn, never letting it show
+		// thinking/streaming. Only a real tool/call counts as "working".
+		const anyWorking = [...liveFacts.tools].some((t) => t.running === true);
 		if (anyWorking) {
 			phase = "working";
 		} else if (liveFacts.streaming) {
@@ -992,20 +999,35 @@ function watchDshEvents() {
 			// which the dial shows as 思考中. The first text-delta means tokens
 			// are arriving, which is 输出中. Without watching these the dial only
 			// ever saw tool/call and so sat on "working" for the whole turn.
+			// Whether this event can possibly change the phase. A turn emits
+			// hundreds of text-delta chunks; re-deriving on every one would run
+			// two JSON.stringify passes per token for a result that only changes
+			// on the *first* delta. So each handler below records whether it
+			// actually moved anything.
+			let phaseTouched = false;
 			if (ev?.type === "step/start") {
 				liveFacts.stepStarted = true;
+				if (liveFacts.streaming) phaseTouched = true;
 				liveFacts.streaming = false;
+				phaseTouched = true;
 			}
 			if (ev?.type === "step/end") {
 				liveFacts.stepStarted = false;
+				if (liveFacts.streaming) phaseTouched = true;
 				liveFacts.streaming = false;
 			}
 			if (ev?.type === "assistant/chunk") {
 				const chunk = ev.data?.chunk;
 				// Only text output counts as streaming. tool-call-deltas are the
 				// model composing a call, which the tool/call event reports better.
-				if (chunk?.type === "text-delta") liveFacts.streaming = true;
-				if (chunk?.type === "finish") liveFacts.streaming = false;
+				if (chunk?.type === "text-delta" && !liveFacts.streaming) {
+					liveFacts.streaming = true;
+					phaseTouched = true;  // first token: 思考中 → 输出中
+				}
+				if (chunk?.type === "finish" && liveFacts.streaming) {
+					liveFacts.streaming = false;
+					phaseTouched = true;
+				}
 			}
 			if (ev?.type === "tool/call") {
 				const name = ev.data?.name ?? "";
@@ -1029,19 +1051,22 @@ function watchDshEvents() {
 					const t = liveFacts.tools[i];
 					if (t.running === true && (callId === "" ? true : t.callId === callId)) {
 						t.running = false;
+						phaseTouched = true;  // a tool finishing flips working → thinking
 						break;
 					}
 				}
 			}
-			// Re-derive after every tool event so the dial sees the update
-			// promptly. Recomputing only `acts` left `phase` stale: a tool
-			// starting or finishing is exactly what flips thinking↔working,
-			// and that flip was waiting for the next session/jobs poll.
-			if (lastState !== undefined && lastSnapshot !== undefined) {
-				const next = deriveState(lastSnapshot, lastState);
-				if (JSON.stringify(next) !== JSON.stringify(lastState)) {
-					lastState = next;
-					broadcast(toFrame(next));
+			// Re-derive only when the phase could have changed, so a turn with
+			// hundreds of text-deltas doesn't do hundreds of JSON.stringify passes.
+			// tool/call always re-derives (it pushes a new activity row even if
+			// phase doesn't flip); text-delta only re-derives on the first one.
+			if (phaseTouched || ev?.type === "tool/call") {
+				if (lastState !== undefined && lastSnapshot !== undefined) {
+					const next = deriveState(lastSnapshot, lastState);
+					if (JSON.stringify(next) !== JSON.stringify(lastState)) {
+						lastState = next;
+						broadcast(toFrame(next));
+					}
 				}
 			}
 			// Log the first few events for development (as before).
