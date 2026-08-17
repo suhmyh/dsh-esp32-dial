@@ -163,8 +163,6 @@ void DialUi::buildMainScreen() {
   whaleIcon_ = lv_img_create(scr);
   lv_img_set_src(whaleIcon_, &whaleIcon);
   lv_obj_align(whaleIcon_, LV_ALIGN_TOP_MID, -18, 58);
-  lv_obj_set_style_img_recolor(whaleIcon_, kBlue, 0);
-  lv_obj_set_style_img_recolor_opa(whaleIcon_, LV_OPA_COVER, 0);
 
   // Title — session title, under the icon.
   titleLabel_ = lv_label_create(scr);

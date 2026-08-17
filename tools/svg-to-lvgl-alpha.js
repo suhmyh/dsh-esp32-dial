@@ -168,19 +168,44 @@ for (let y = 0; y < SIZE; y++) {
 	}
 }
 
-// ── emit the C file ──────────────────────────────────────────────────────
-const rows = [];
+// ── emit the C file as TRUE_COLOR_ALPHA (RGB565 + per-pixel alpha) ────────
+//
+// Why TRUE_COLOR and not ALPHA_8BIT: the recolor mechanism for ALPHA masks
+// was unreliable on the ESP32-S3 LVGL 8.4 build (icon rendered invisible).
+// TRUE_COLOR_ALPHA bakes the colour (DeepSeek blue) into every pixel so no
+// recolor style is needed; the widget just displays it.
+//
+// Pixel layout: for each (x,y) we emit two bytes of RGB565 followed by one
+// byte of alpha. LV_COLOR_16_SWAP is irrelevant here because the draw layer
+// copies through lv_color_t, which handles its own byte order.
+const R = 0x1E, G = 0x88, B = 0xE5; // DeepSeek blue
+// RGB565: rrrr r0gg gggb bbbb
+const rgb = ((R & 0xF8) << 8) | ((G & 0xFC) << 3) | (B >> 3);
+const bHi = (rgb >> 8) & 0xFF;
+const bLo = rgb & 0xFF;
+
+// Byte order: this firmware builds LVGL with LV_COLOR_16_SWAP=1, so an
+// lv_color_t in memory is {low byte, high byte}. TRUE_COLOR_ALPHA data is
+// read straight into lv_color_t, so we must emit low-then-high to match —
+// emitting high-first tints the whale an unrelated colour.
+const cells = [];
 for (let y = 0; y < SIZE; y++) {
-	const cells = [];
 	for (let x = 0; x < SIZE; x++) {
-		cells.push("0x" + alpha[y * SIZE + x].toString(16).padStart(2, "0"));
+		const a = alpha[y * SIZE + x];
+		cells.push("0x" + bLo.toString(16).padStart(2, "0"));
+		cells.push("0x" + bHi.toString(16).padStart(2, "0"));
+		cells.push("0x" + a.toString(16).padStart(2, "0"));
 	}
-	rows.push("    " + cells.join(","));
+}
+// 16 bytes per row, wrap every 6 pixels (18 bytes)
+const rows = [];
+for (let i = 0; i < cells.length; i += 36) {
+	rows.push("    " + cells.slice(i, i + 36).join(","));
 }
 
 const out = `#include "WhaleIcon.h"
 
-// DeepSeek whale — ${SIZE}×${SIZE} LV_IMG_CF_ALPHA_8BIT mask.
+// DeepSeek whale — ${SIZE}×${SIZE} LV_IMG_CF_TRUE_COLOR_ALPHA.
 //
 // GENERATED FILE. Do not edit by hand.
 //   node tools/svg-to-lvgl-alpha.js <favicon.svg> <this file> ${SIZE}
@@ -188,23 +213,23 @@ const out = `#include "WhaleIcon.h"
 // rasterised at ${SS}× and box-averaged down, so the tail and eye survive at
 // this size.
 //
-// An alpha mask carries no colour: LVGL paints it with the widget's
-// img_recolor style, which keeps it independent of LV_COLOR_16_SWAP byte
-// order and lets the dial tint it DeepSeek blue.
-static const uint8_t whale_alpha[${SIZE} * ${SIZE}] = {
+// Each pixel is two bytes RGB565 (DeepSeek blue) + one byte alpha, so the
+// colour is baked in and no img_recolor style is needed. This avoids the
+// ALPHA_8BIT recolor path that rendered invisibly on LVGL 8.4.
+static const uint8_t whale_pixels[${SIZE * SIZE * 3}] = {
 ${rows.join(",\n")},
 };
 
 const lv_img_dsc_t whaleIcon = {
     .header = {
-        .cf = LV_IMG_CF_ALPHA_8BIT,
+        .cf = LV_IMG_CF_TRUE_COLOR_ALPHA,
         .always_zero = 0,
         .reserved = 0,
         .w = ${SIZE},
         .h = ${SIZE},
     },
-    .data_size = sizeof(whale_alpha),
-    .data = whale_alpha,
+    .data_size = sizeof(whale_pixels),
+    .data = whale_pixels,
 };
 `;
 
