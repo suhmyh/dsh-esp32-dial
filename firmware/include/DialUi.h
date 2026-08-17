@@ -173,8 +173,9 @@ class DialUi {
   // in DialUi.cpp for the full list of characters that render as boxes).
   lv_obj_t* footerIcon_ = nullptr;   // LVGL symbol (Montserrat)
   lv_obj_t* footerText_ = nullptr;   // "已连接" / "离线" (SIMSUN)
-  lv_obj_t* footerMid_ = nullptr;    // "上下文 xx%" — clock-adjacent, idle only
   lv_obj_t* footerRight_ = nullptr;  // battery — SIMSUN, ASCII only
+  lv_obj_t* ctxLabel_ = nullptr;     // "上下文 xx%" — arc-adjacent, idle only
+
   // Idle face: three-column layout — 4 stat rows left, clock centre, 4 right.
   // Value labels (white) and name labels (gray) are separate to avoid recolor
   // parsing issues — each label has exactly one colour.
@@ -210,6 +211,17 @@ class DialUi {
 
   // Phase→background colour lookup
   static lv_color_t colorForPhase(DialPhase phase, bool stale);
+
+  // Background colour transition animation state
+  lv_color_t prevBgColor_ = LV_COLOR_MAKE(0x0D, 0x11, 0x1D);
+  lv_anim_t bgAnim_;
+  static void bgAnimCb(void* obj, int32_t v);
+
+  // Whale breathing animation (thinking / streaming)
+  lv_anim_t whaleAnim_;
+  static void whaleAnimCb(void* obj, int32_t v);
+  void startWhaleAnim();
+  void stopWhaleAnim();
 
   // Layout helpers
   void buildMainScreen();

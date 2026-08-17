@@ -48,6 +48,37 @@ static void arcAnimCb_(void* obj, int32_t v) {
   lv_arc_set_value(static_cast<lv_obj_t*>(obj), static_cast<int16_t>(v));
 }
 
+// Background colour transition: mix prev → target over 300 ms so phase
+// switches feel like a gentle fade instead of a hard cut.
+void DialUi::bgAnimCb(void* obj, int32_t v) {
+  DialUi* self = static_cast<DialUi*>(obj);
+  lv_color_t target = self->colorForPhase(self->phase_, self->stale_);
+  lv_obj_set_style_bg_color(self->statusBg_,
+                            lv_color_mix(self->prevBgColor_, target, v), 0);
+}
+
+// Whale breathing: zoom in/out on thinking/streaming so the icon feels
+// alive without being distracting.
+void DialUi::whaleAnimCb(void* obj, int32_t v) {
+  lv_img_set_zoom(static_cast<lv_obj_t*>(obj), static_cast<int16_t>(v));
+}
+void DialUi::startWhaleAnim() {
+  if (whaleIcon_ == nullptr) return;
+  lv_anim_init(&whaleAnim_);
+  lv_anim_set_var(&whaleAnim_, whaleIcon_);
+  lv_anim_set_exec_cb(&whaleAnim_, whaleAnimCb);
+  lv_anim_set_values(&whaleAnim_, 240, 300);      // 94% → 117%
+  lv_anim_set_time(&whaleAnim_, 1500);
+  lv_anim_set_playback_time(&whaleAnim_, 1500);
+  lv_anim_set_repeat_count(&whaleAnim_, LV_ANIM_REPEAT_INFINITE);
+  lv_anim_start(&whaleAnim_);
+}
+void DialUi::stopWhaleAnim() {
+  if (whaleIcon_ == nullptr) return;
+  lv_anim_del(whaleIcon_, whaleAnimCb);
+  lv_img_set_zoom(whaleIcon_, 256);                // back to 100%
+}
+
 // ── colour mapping ───────────────────────────────────────────────────────
 lv_color_t DialUi::colorForPhase(DialPhase phase, bool stale) {
   if (stale) return kGray;
@@ -89,6 +120,8 @@ void DialUi::begin() {
   // the dial must never imply otherwise.
   setPhaseLabel(DialPhase::Offline);
   lv_obj_set_style_bg_color(statusBg_, colorForPhase(DialPhase::Offline, false), 0);
+  lv_obj_set_style_bg_grad_color(statusBg_, kDarkBg, 0);
+  prevBgColor_ = colorForPhase(DialPhase::Offline, false);
   lv_label_set_text(titleLabel_, "DSH");
   lv_label_set_text(detailLabel_, "connecting...");
   updateArc(0);
@@ -107,6 +140,12 @@ void DialUi::buildMainScreen() {
   lv_obj_set_style_border_width(statusBg_, 0, 0);
   lv_obj_set_style_bg_color(statusBg_, kDim, 0);
   lv_obj_set_style_bg_opa(statusBg_, 255, 0);
+  // Gradient fade: phase colour at the top dissolves into the dark base
+  // toward the bottom, so the dial reads as "glowing" rather than "painted".
+  lv_obj_set_style_bg_grad_color(statusBg_, kDarkBg, 0);
+  lv_obj_set_style_bg_grad_dir(statusBg_, LV_GRAD_DIR_VER, 0);
+  lv_obj_set_style_bg_main_stop(statusBg_, 100, 0);     // ~40% top is phase colour
+  lv_obj_set_style_bg_grad_stop(statusBg_, 100, 0);     // gradient starts there
 
   // A long press anywhere on the dial re-opens provisioning, so a change of
   // network never forces a cable. The arc above swallows its own presses, so
@@ -278,43 +317,44 @@ void DialUi::buildMainScreen() {
 
   // ── idle statistics ticker ──────────────────────────────────────────────
   // ── always-on footer ────────────────────────────────────────────────────
-  // Link state and battery stay visible in every phase: when the dial says
-  // nothing is happening, the footer is what proves it still knows.
+  // Link state and battery sit side-by-side, centred along the bottom chord.
+  // Earlier the three labels were pinned to the left and right edges of the
+  // 360px square; on a round screen the chord at that y is only ~200px wide,
+  // so the text ran off the bezel. Grouping them in one centred bar fixes
+  // that and reads better as a single "device health" strip.
   //
   // The icon and text MUST be separate labels. LVGL's built-in symbols live in
   // the Montserrat font range (0xF1xx), but the CJK font has no symbol glyphs —
   // rendering LV_SYMBOL_WIFI with SIMSUN would draw a box. Chinese text, in
-  // turn, is absent from Montserrat. So the footer is two labels side by side,
-  // each with the font that contains its content. Verified against the SIMSUN
-  // CJK character list: it holds only ~1000 Han radicals plus basic ASCII, no
-  // punctuation, no symbols, no mid-dots (·), no box-drawing (│).
+  // turn, is absent from Montserrat. So the footer is three labels side by
+  // side, each with the font that contains its content.
   footerIcon_ = lv_label_create(scr);
-  lv_obj_align(footerIcon_, LV_ALIGN_BOTTOM_MID, -70, -40);
+  lv_obj_align(footerIcon_, LV_ALIGN_BOTTOM_MID, -55, -40);
   lv_obj_set_style_text_font(footerIcon_, &lv_font_montserrat_20, 0);
   lv_obj_set_style_text_color(footerIcon_, kGray, 0);
   lv_label_set_text(footerIcon_, "");
 
   footerText_ = lv_label_create(scr);
-  lv_obj_align(footerText_, LV_ALIGN_BOTTOM_MID, -36, -40);
+  lv_obj_align(footerText_, LV_ALIGN_BOTTOM_MID, -25, -39);
   lv_obj_set_style_text_font(footerText_, &dsh_font_cjk_16, 0);
   lv_obj_set_style_text_color(footerText_, kGray, 0);
   lv_label_set_text(footerText_, "");
 
   footerRight_ = lv_label_create(scr);
-  lv_obj_align(footerRight_, LV_ALIGN_BOTTOM_MID, 52, -40);
+  lv_obj_align(footerRight_, LV_ALIGN_BOTTOM_MID, 38, -39);
   lv_obj_set_style_text_font(footerRight_, &dsh_font_cjk_16, 0);
   lv_obj_set_style_text_color(footerRight_, kGray, 0);
   lv_label_set_text(footerRight_, "");
 
-  // Context pressure text under the clock — the arc already shows it as a ring,
-  // but the number belongs next to the idle readout, not competing for footer
-  // width. Shown only while idle; setState fills it.
-  footerMid_ = lv_label_create(scr);
-  lv_obj_align(footerMid_, LV_ALIGN_CENTER, 0, 34);
-  lv_obj_set_style_text_font(footerMid_, &dsh_font_cjk_16, 0);
-  lv_obj_set_style_text_color(footerMid_, kGray, 0);
-  lv_label_set_text(footerMid_, "");
-  lv_obj_add_flag(footerMid_, LV_OBJ_FLAG_HIDDEN);
+  // Context pressure caption, printed just inside the arc at the top of the
+  // dial. The ring alone is ambiguous — a coloured band with no legend reads as
+  // decoration — so the number it encodes sits right where the ring starts.
+  ctxLabel_ = lv_label_create(scr);
+  lv_obj_align(ctxLabel_, LV_ALIGN_TOP_MID, 0, 26);
+  lv_obj_set_style_text_font(ctxLabel_, &dsh_font_cjk_16, 0);
+  lv_obj_set_style_text_color(ctxLabel_, kGray, 0);
+  lv_label_set_text(ctxLabel_, "");
+  lv_obj_add_flag(ctxLabel_, LV_OBJ_FLAG_HIDDEN);
 }
 
 // ── ask overlay ──────────────────────────────────────────────────────────
@@ -430,7 +470,30 @@ void DialUi::setState(const JsonDocument& doc) {
   updateArc(ctx);
 
   setPhaseLabel(newPhase);
-  lv_obj_set_style_bg_color(statusBg_, colorForPhase(newPhase, stale_), 0);
+
+  // Smooth background colour transition (300 ms) instead of a hard cut.
+  // The animation mixes prevBgColor_ → newColor; when it finishes the
+  // object sits at the target and the next phase change picks up from there.
+  {
+    const lv_color_t targetColor = colorForPhase(newPhase, stale_);
+    lv_anim_del(this, bgAnimCb);
+    lv_anim_init(&bgAnim_);
+    lv_anim_set_var(&bgAnim_, this);
+    lv_anim_set_exec_cb(&bgAnim_, bgAnimCb);
+    lv_anim_set_values(&bgAnim_, 0, 255);
+    lv_anim_set_time(&bgAnim_, 300);
+    lv_anim_start(&bgAnim_);
+    prevBgColor_ = lv_obj_get_style_bg_color(statusBg_, 0);
+    // set immediately so colorForPhase inside cb returns the right target
+    lv_obj_set_style_bg_color(statusBg_, targetColor, 0);
+  }
+
+  // Whale animation: breathe while thinking/streaming, still otherwise.
+  if (newPhase == DialPhase::Thinking || newPhase == DialPhase::Streaming) {
+    startWhaleAnim();
+  } else {
+    stopWhaleAnim();
+  }
 
   const char* title = doc["title"] | "";
   if (strlen(title) > 0) lv_label_set_text(titleLabel_, title);
@@ -499,21 +562,21 @@ void DialUi::setState(const JsonDocument& doc) {
   }
 
   // Context pressure text under the clock, visible only while idle.
-  if (idleFace && footerMid_ != nullptr) {
+  if (idleFace && ctxLabel_ != nullptr) {
     const uint8_t ctx = doc["ctx"] | 0;
     if (ctx > 0) {
       char buf[24];
       snprintf(buf, sizeof(buf), "上下文 %u%%", ctx);
-      lv_label_set_text(footerMid_, buf);
-      lv_obj_set_style_text_color(footerMid_,
+      lv_label_set_text(ctxLabel_, buf);
+      lv_obj_set_style_text_color(ctxLabel_,
           ctx < 50 ? kGreen : ctx < 80 ? kYellow : kRed, 0);
-      lv_obj_clear_flag(footerMid_, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_clear_flag(ctxLabel_, LV_OBJ_FLAG_HIDDEN);
     } else {
-      lv_label_set_text(footerMid_, "");
-      lv_obj_add_flag(footerMid_, LV_OBJ_FLAG_HIDDEN);
+      lv_label_set_text(ctxLabel_, "");
+      lv_obj_add_flag(ctxLabel_, LV_OBJ_FLAG_HIDDEN);
     }
-  } else if (footerMid_ != nullptr) {
-    lv_obj_add_flag(footerMid_, LV_OBJ_FLAG_HIDDEN);
+  } else if (ctxLabel_ != nullptr) {
+    lv_obj_add_flag(ctxLabel_, LV_OBJ_FLAG_HIDDEN);
   }
 
   setActivity(doc);
@@ -618,7 +681,7 @@ void DialUi::setFooter(const JsonDocument& doc) {
     lv_label_set_text(footerRight_, "");
   }
 
-  // footerMid_ is handled in setState as a clock-adjacent label.
+  // ctxLabel_ is handled in setState near the top of the dial.
 }
 
 void DialUi::updateArc(uint8_t ctxPercent) {
@@ -917,7 +980,7 @@ void DialUi::setConnecting(const char* message) {
     if (idleNameRight_[i] != nullptr) lv_obj_add_flag(idleNameRight_[i], LV_OBJ_FLAG_HIDDEN);
   }
   // The footer stays: link state and battery are exactly what matters now.
-  if (footerMid_ != nullptr) lv_obj_add_flag(footerMid_, LV_OBJ_FLAG_HIDDEN);
+  if (ctxLabel_ != nullptr) lv_obj_add_flag(ctxLabel_, LV_OBJ_FLAG_HIDDEN);
   updateArc(0);
 }
 
