@@ -533,7 +533,16 @@ void DialUi::setActivity(const JsonDocument& doc) {
   const bool working = (phase_ == DialPhase::Working ||
                         phase_ == DialPhase::Done ||
                         phase_ == DialPhase::Error);
-  if (!working) return;
+  if (!working) {
+    // Clear any leftover activity rows when leaving the working phase, so a
+    // brief phase flip (working→thinking→streaming) cannot flash stale tool
+    // names on the idle face before idleFace hides them.
+    for (uint8_t i = 0; i < kActivityLines; ++i) {
+      lv_label_set_text(activityRows_[i], "");
+      lv_obj_add_flag(activityRows_[i], LV_OBJ_FLAG_HIDDEN);
+    }
+    return;
+  }
 
   JsonArrayConst acts = doc["acts"].as<JsonArrayConst>();
   uint8_t row = 0;

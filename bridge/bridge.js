@@ -1018,9 +1018,16 @@ function watchDshEvents() {
 			}
 			if (ev?.type === "assistant/chunk") {
 				const chunk = ev.data?.chunk;
-				// Only text output counts as streaming. tool-call-deltas are the
-				// model composing a call, which the tool/call event reports better.
-				if (chunk?.type === "text-delta" && !liveFacts.streaming) {
+				// Both reasoning-delta and text-delta are LLM tokens arriving —
+				// the model reasons before it writes the visible reply, and that
+				// reasoning can take 30+ seconds. Without counting it as
+				// streaming, the dial stayed on "思考中" for the entire reasoning
+				// phase even though tokens were actively flowing.
+				//
+				// tool-call-deltas are excluded: they compose a tool invocation,
+				// which the tool/call event reports better.
+				const isText = chunk?.type === "text-delta" || chunk?.type === "reasoning-delta";
+				if (isText && !liveFacts.streaming) {
 					liveFacts.streaming = true;
 					phaseTouched = true;  // first token: 思考中 → 输出中
 				}
