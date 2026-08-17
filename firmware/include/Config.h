@@ -23,7 +23,7 @@
 // mean re-provisioning. NVS still wins once anything has been saved there:
 // these values apply only when NVS is empty, and the portal or serial console
 // can overwrite them at any time.
-#define DSH_DEFAULT_WIFI_SSID       "TiresMall-Al P"
+#define DSH_DEFAULT_WIFI_SSID       "TiresMall-Al"
 #define DSH_DEFAULT_WIFI_PASSWORD   "TM67171717"
 
 // ── First-boot bridge seed (stored to NVS, then editable) ──────────────
