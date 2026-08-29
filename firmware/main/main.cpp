@@ -26,6 +26,7 @@
 #include "app_wrappers/gallery_app.hpp"
 #include "app_dsh/dsh_app.hpp"
 #include "app_codex/codex_app.hpp"
+#include "app_xiaolan/xiaolan_widget.hpp"
 #include "app_msg/submenu_ui/set_wifi_service.h"
 
 // C headers
@@ -52,6 +53,7 @@ static Phone *g_phone = nullptr;
 
 /* 背光状态：false=熄灭，true=点亮 */
 static bool g_backlight_on = true;
+static esp_brookesia::apps::XiaolanWidget g_xiaolan;
 
 /* BOOT按键回调：按一下切换背光 + 触摸（模拟手机电源键） */
 static void boot_button_cb(void *arg, void *usr_data)
@@ -201,6 +203,12 @@ extern "C" void app_main(void)
         /* Codex is a separate full-screen controller app. */
         auto codexApp = CodexApp::requestInstance();
         ESP_UTILS_CHECK_FALSE_EXIT(phone->installApp(codexApp), "Install CodexApp failed");
+
+        /* Xiaolan is a desktop-layer pet, not an app: it stays on the launcher
+         * and disappears naturally whenever a full-screen app is opened. */
+        ESP_UTILS_CHECK_FALSE_EXIT(
+            g_xiaolan.begin(phone->getDisplay().getMainScreenObject()),
+            "Install Xiaolan desktop pet failed");
 
         /* Create a timer to update the clock */
         lv_timer_create([](lv_timer_t *t) {
