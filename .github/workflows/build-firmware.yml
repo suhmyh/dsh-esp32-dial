@@ -32,6 +32,8 @@ jobs:
         working-directory: firmware
         run: |
           . /opt/esp/idf/export.sh
+          # The upstream desktop partition table places the factory app at
+          # 0x20000 (not the Arduino default 0x10000).
           esptool.py --chip esp32s3 merge_bin \
             --output dsh-dial-merged.bin \
             --flash_mode dio \
@@ -39,8 +41,6 @@ jobs:
             --flash_size 16MB \
             0x0 build/bootloader/bootloader.bin \
             0x8000 build/partition_table/partition-table.bin \
-            # The upstream desktop partition table places the factory app at
-            # 0x20000 (not the Arduino default 0x10000).
             0x20000 build/01_factory.bin
           ls -la dsh-dial-merged.bin
 
