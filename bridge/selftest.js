@@ -207,10 +207,12 @@ console.log("\n▸ checks\n");
 try {
 	const s = await status(PORT);
 	check("bridge serves /status", s.bridge === "dsh-esp32-bridge", `devices=${s.devices} dshOnline=${s.dshOnline}`);
-	check("bridge reached DSH", s.dshOnline === true, s.dshOnline ? "session.list answered" : "DSH unreachable — is dsh web running on 3080?");
+	const backendOnline = s.backend === "codex" ? s.codexOnline === true : s.dshOnline === true;
+	check("bridge reached desktop backend", backendOnline,
+		backendOnline ? `${s.backend ?? "dsh"} backend answered` : "desktop backend unreachable — start Codex or set BRIDGE_BACKEND=dsh");
 } catch (error) {
 	check("bridge serves /status", false, error.message);
-	check("bridge reached DSH", false, "status page unavailable");
+	check("bridge reached desktop backend", false, "status page unavailable");
 }
 
 // 2 — token discovered, and wrong tokens refused
