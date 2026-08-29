@@ -44,6 +44,7 @@ DialUi dialUi;  // global instance
 // Arc progress animation: one reusable descriptor + exec callback. File scope
 // so updateArc can stop/resume without the class header exposing LVGL internals.
 static lv_anim_t arcAnim_;
+static unsigned long lastBackgroundClickMs_ = 0;
 static void arcAnimCb_(void* obj, int32_t v) {
   lv_arc_set_value(static_cast<lv_obj_t*>(obj), static_cast<int16_t>(v));
 }
@@ -154,7 +155,7 @@ void DialUi::buildMainScreen() {
   lv_obj_add_event_cb(statusBg_, DialUi::backgroundLongPressed,
                       LV_EVENT_LONG_PRESSED, nullptr);
   lv_obj_add_event_cb(statusBg_, DialUi::backgroundDoubleClicked,
-                      LV_EVENT_DOUBLE_CLICKED, nullptr);
+                      LV_EVENT_SHORT_CLICKED, nullptr);
 
   // Context pressure arc → outer ring, indicator mode.
   // LVGL's 0° is at 3 o'clock (right), so the arc initially grows from the
@@ -864,7 +865,16 @@ void DialUi::onBackgroundLongPress() {
 }
 
 void DialUi::backgroundDoubleClicked(lv_event_t* /*event*/) {
-  dialUi.toggleDesktop();
+  // LVGL 8.4 exposes short-click events but not a double-click event. Keep the
+  // gesture local and non-blocking: two taps inside 450 ms toggle the shell.
+  const unsigned long now = millis();
+  if (lastBackgroundClickMs_ != 0 &&
+      now - lastBackgroundClickMs_ <= 450) {
+    lastBackgroundClickMs_ = 0;
+    dialUi.toggleDesktop();
+  } else {
+    lastBackgroundClickMs_ = now;
+  }
 }
 
 void DialUi::desktopButtonClicked(lv_event_t* event) {
