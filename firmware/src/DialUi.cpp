@@ -115,6 +115,7 @@ void DialUi::begin() {
   buildMainScreen();
   buildAskOverlay();
   buildProvisioningScreen();
+  buildDesktop();
 
   // Start in the offline state: nothing has been heard from the bridge yet, and
   // the dial must never imply otherwise.
@@ -152,6 +153,8 @@ void DialUi::buildMainScreen() {
   // the gesture has to live on the full-screen background.
   lv_obj_add_event_cb(statusBg_, DialUi::backgroundLongPressed,
                       LV_EVENT_LONG_PRESSED, nullptr);
+  lv_obj_add_event_cb(statusBg_, DialUi::backgroundDoubleClicked,
+                      LV_EVENT_DOUBLE_CLICKED, nullptr);
 
   // Context pressure arc → outer ring, indicator mode.
   // LVGL's 0° is at 3 o'clock (right), so the arc initially grows from the
@@ -737,6 +740,9 @@ void DialUi::showAsk(const JsonDocument& doc) {
   // While provisioning, there is no bridge link to answer over.
   if (provisioning_) return;
 
+  // An approval must never be hidden behind the launcher.
+  setDesktopVisible(false);
+
   waiting_ = true;
   phase_ = DialPhase::Waiting;
 
@@ -857,6 +863,28 @@ void DialUi::onBackgroundLongPress() {
   reprovisionRequested_ = true;
 }
 
+void DialUi::backgroundDoubleClicked(lv_event_t* /*event*/) {
+  dialUi.toggleDesktop();
+}
+
+void DialUi::desktopButtonClicked(lv_event_t* event) {
+  const uint8_t index = static_cast<uint8_t>(
+      reinterpret_cast<uintptr_t>(lv_event_get_user_data(event)));
+  if (index == 0) {
+    // Codex is the first real app: return to its full-screen dial immediately.
+    dialUi.toggleDesktop();
+    return;
+  }
+
+  // Keep the shell interactive while an app is being ported. This is more
+  // useful than a dead tile: the hint confirms that the touch reached the
+  // launcher and gives the next app a stable place to land.
+  if (dialUi.desktopHint_ == nullptr) return;
+  lv_label_set_text(dialUi.desktopHint_,
+                    index == 1 ? "Pocket Watch：下一阶段接入"
+                               : "Scoreboard：下一阶段接入");
+}
+
 // ── provisioning screen ──────────────────────────────────────────────────
 
 void DialUi::buildProvisioningScreen() {
@@ -900,10 +928,88 @@ void DialUi::buildProvisioningScreen() {
   lv_label_set_text(provUrl_, "");
 }
 
+// ── desktop launcher ────────────────────────────────────────────────────
+
+/**
+ * Build the first app-container shell. Codex is already a complete full-screen
+ * app; the two neighbouring tiles reserve stable slots for the Pocket Watch
+ * and Beyblade Scoreboard ports from the design reference.
+ */
+void DialUi::buildDesktop() {
+  desktopBg_ = lv_obj_create(lv_scr_act());
+  lv_obj_set_size(desktopBg_, 360, 360);
+  lv_obj_set_pos(desktopBg_, 0, 0);
+  lv_obj_set_style_radius(desktopBg_, 180, 0);
+  lv_obj_set_style_border_width(desktopBg_, 0, 0);
+  lv_obj_set_style_bg_color(desktopBg_, kDarkBg, 0);
+  lv_obj_set_style_bg_opa(desktopBg_, 255, 0);
+  lv_obj_clear_flag(desktopBg_, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_flag(desktopBg_, LV_OBJ_FLAG_HIDDEN);
+
+  desktopTitle_ = lv_label_create(desktopBg_);
+  lv_obj_align(desktopTitle_, LV_ALIGN_TOP_MID, 0, 28);
+  lv_obj_set_style_text_font(desktopTitle_, &dsh_font_cjk_16, 0);
+  lv_obj_set_style_text_color(desktopTitle_, kWhite, 0);
+  lv_obj_set_style_text_align(desktopTitle_, LV_TEXT_ALIGN_CENTER, 0);
+  lv_label_set_text(desktopTitle_, "DSH 桌面");
+
+  const char* labels[] = {
+      "Codex\n实时状态",
+      "Pocket Watch\n待接入",
+      "Scoreboard\n待接入",
+  };
+  const lv_color_t colours[] = {kBlue, kDim, kDim};
+  for (uint8_t i = 0; i < 3; ++i) {
+    desktopAppButtons_[i] = lv_btn_create(desktopBg_);
+    lv_obj_set_size(desktopAppButtons_[i], 180, 52);
+    lv_obj_align(desktopAppButtons_[i], LV_ALIGN_TOP_MID, 0,
+                 static_cast<lv_coord_t>(80 + i * 62));
+    lv_obj_set_style_radius(desktopAppButtons_[i], 12, 0);
+    lv_obj_set_style_bg_color(desktopAppButtons_[i], colours[i], 0);
+    lv_obj_set_style_bg_opa(desktopAppButtons_[i], i == 0 ? 230 : 150, 0);
+    lv_obj_add_event_cb(desktopAppButtons_[i], DialUi::desktopButtonClicked,
+                        LV_EVENT_CLICKED,
+                        reinterpret_cast<void*>(static_cast<uintptr_t>(i)));
+
+    lv_obj_t* label = lv_label_create(desktopAppButtons_[i]);
+    lv_obj_set_style_text_font(label, &dsh_font_cjk_16, 0);
+    lv_obj_set_style_text_color(label, kWhite, 0);
+    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_text(label, labels[i]);
+    lv_obj_center(label);
+  }
+
+  desktopHint_ = lv_label_create(desktopBg_);
+  lv_obj_align(desktopHint_, LV_ALIGN_BOTTOM_MID, 0, -28);
+  lv_obj_set_style_text_font(desktopHint_, &dsh_font_cjk_16, 0);
+  lv_obj_set_style_text_color(desktopHint_, kGray, 0);
+  lv_obj_set_style_text_align(desktopHint_, LV_TEXT_ALIGN_CENTER, 0);
+  lv_label_set_text(desktopHint_, "双击空白处返回 Codex");
+}
+
+void DialUi::setDesktopVisible(bool visible) {
+  if (desktopBg_ == nullptr) return;
+  desktopVisible_ = visible;
+  if (visible) {
+    // The launcher is a navigation surface, never an approval surface.
+    lv_obj_add_flag(askBg_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(desktopBg_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(desktopBg_);
+  } else {
+    lv_obj_add_flag(desktopBg_, LV_OBJ_FLAG_HIDDEN);
+  }
+}
+
+void DialUi::toggleDesktop() {
+  if (provisioning_ || waiting_) return;
+  setDesktopVisible(!desktopVisible_);
+}
+
 void DialUi::showProvisioning(const char* apSsid, const char* apPassword,
                               const char* portalUrl, const char* reason) {
   if (provBg_ == nullptr) return;
   provisioning_ = true;
+  setDesktopVisible(false);
 
   // The reason line doubles as the instruction: a user looking at this screen
   // for the first time needs to know what to do, not just what happened.
