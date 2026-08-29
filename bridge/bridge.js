@@ -30,10 +30,13 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { CodexAppServer } from "./codex-backend.js";
 
 // ─────────────────────────────────────────────────────────────── configuration
 
 const CONFIG = {
+	/** Codex is the primary desktop backend; set BRIDGE_BACKEND=dsh for legacy DSH. */
+	backend: process.env.BRIDGE_BACKEND ?? "codex",
 	/** Port the device connects to. 3080 = DSH, 3081 = remote gateway. */
 	listenPort: Number(process.env.BRIDGE_PORT ?? 3082),
 	/** DSH's loopback web server. */
@@ -575,6 +578,8 @@ const pendingAsks = new Map();
 let lastState;
 let lastSnapshot;
 let dshOnline = false;
+let codexOnline = false;
+let codexBackend = null;
 
 /**
  * Send one JSON frame to one device.
@@ -655,6 +660,34 @@ async function tick() {
 		log(`state → ${next.phase} | ${next.title || "(no title)"} | ctx ${next.ctx}% | ${next.running}/${next.sessions} running`);
 	}
 	if (next.phase === "done") broadcast({ t: "beep", kind: "done" });
+}
+
+/** Start the native Codex app-server backend on Windows/macOS/Linux. */
+function startCodexBackend() {
+	codexBackend = new CodexAppServer({ pollMs: CONFIG.pollMs, maxThreads: 20 });
+	codexBackend.start((next) => {
+		const previous = lastState;
+		lastState = next;
+		const changed = previous === undefined ||
+			next.phase !== previous.phase ||
+			next.title !== previous.title ||
+			next.detail !== previous.detail ||
+			next.running !== previous.running ||
+			next.sessions !== previous.sessions ||
+			next.steps !== previous.steps ||
+			JSON.stringify(next.acts) !== JSON.stringify(previous.acts) ||
+			next.clock !== previous.clock;
+		if (changed) {
+			broadcast(toFrame(next));
+			log(`Codex state → ${next.phase} | ${next.title || "Codex"} | ${next.running}/${next.sessions} running`);
+		}
+		if (next.phase === "done" && previous?.phase !== "done") broadcast({ t: "beep", kind: "done" });
+	}, (online, error) => {
+		if (codexOnline !== online) {
+			codexOnline = online;
+			log(online ? "Codex app-server link up" : `Codex app-server link down (${error?.message ?? "unknown"})`);
+		}
+	});
 }
 
 /**
@@ -1094,7 +1127,9 @@ const server = createServer((req, res) => {
 	if (req.url === "/" || req.url === "/status") {
 		const body = JSON.stringify({
 			bridge: "dsh-esp32-bridge",
+			backend: CONFIG.backend,
 			dshOnline,
+			codexOnline,
 			devices: devices.size,
 			pendingAsks: pendingAsks.size,
 			state: lastState === undefined ? null : toFrame(lastState),
@@ -1190,13 +1225,18 @@ function startBridge() {
 	server.listen(CONFIG.listenPort, "0.0.0.0", () => {
 		log(`bridge listening on ws://0.0.0.0:${CONFIG.listenPort}/dev`);
 		log(`device token: ${TOKEN}`);
-		log(`DSH target: http://${CONFIG.dshHost}:${CONFIG.dshPort}`);
+		if (CONFIG.backend === "codex") log("Codex target: local app-server (codex app-server --stdio)");
+		else log(`DSH target: http://${CONFIG.dshHost}:${CONFIG.dshPort}`);
 		log(`status page: http://127.0.0.1:${CONFIG.listenPort}/status`);
 	});
 
-	setInterval(() => { void tick(); }, CONFIG.pollMs);
-	void tick();
-	watchDshEvents();
+	if (CONFIG.backend === "codex") {
+		startCodexBackend();
+	} else {
+		setInterval(() => { void tick(); }, CONFIG.pollMs);
+		void tick();
+		watchDshEvents();
+	}
 }
 
 // If run as a script (node bridge.js), start the server.

@@ -1,7 +1,7 @@
 {
   "name": "dsh-esp32-bridge",
   "version": "0.5.0",
-  "description": "Bridge between DeepSeek Harness and an ESP32-S3 status dial (protocol documented in ../协议规范.md)",
+  "description": "Bridge between Codex/DSH and an ESP32-S3 status dial (protocol documented in ../docs/协议规范.md)",
   "type": "module",
   "scripts": {
     "start": "node bridge.js",

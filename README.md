@@ -22,7 +22,7 @@ firmware/
   main/app_dsh/                DSH Phone App 插件
   main/app_wrappers/           Settings/Music/Gallery 应用
   main/dark/                   360x360 暗色桌面样式
-bridge/                         电脑侧 DSH 桥接进程
+bridge/                         电脑侧 Codex/DSH 桥接进程
 docs/                           WebSerial 烧录页面和设计文档
 firmware-legacy/                本地保留的旧 Arduino 实现，不参与构建
 ```
