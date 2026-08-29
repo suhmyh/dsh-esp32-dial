@@ -125,7 +125,7 @@ void AppShell::buildAppPage() {
   styleButton(minus, kShellPurple);
   lv_obj_add_event_cb(minus, scoreButtonClicked, LV_EVENT_CLICKED,
                       reinterpret_cast<void*>(static_cast<uintptr_t>(0)));
-  lv_obj_t* minusLabel = makeLabel(minus, "−", 50, kShellWhite);
+  lv_obj_t* minusLabel = makeLabel(minus, "-", 50, kShellWhite);
   lv_obj_center(minusLabel);
 
   lv_obj_t* plus = lv_btn_create(appPage_);
@@ -161,7 +161,7 @@ void AppShell::showApp(AppId app) {
       break;
     case AppId::Scoreboard:
       lv_label_set_text(appTitle_, "Scoreboard");
-      lv_label_set_text(appBody_, "比分");
+      lv_label_set_text(appBody_, "SCORE");
       break;
     default:
       lv_label_set_text(appTitle_, "");
