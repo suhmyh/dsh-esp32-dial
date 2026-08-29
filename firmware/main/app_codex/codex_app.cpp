@@ -15,6 +15,19 @@ namespace {
 constexpr char TAG[] = "CodexApp";
 constexpr uint32_t kStaleMs = 8000;
 
+static systems::base::App::Config makeCodexCoreConfig()
+{
+    return systems::base::App::Config::SIMPLE_CONSTRUCTOR("Codex", nullptr, false);
+}
+
+static systems::phone::App::Config makeCodexPhoneConfig(bool use_status_bar, bool use_navigation_bar)
+{
+    auto config = systems::phone::App::Config::SIMPLE_CONSTRUCTOR(nullptr, use_status_bar, use_navigation_bar);
+    // Keep page 0 reserved for the standalone Xiaolan home page.
+    config.app_launcher_page_index = 1;
+    return config;
+}
+
 static lv_obj_t *makeLabel(lv_obj_t *parent, const char *text, lv_color_t color, lv_coord_t width = LV_SIZE_CONTENT)
 {
     lv_obj_t *obj = lv_label_create(parent);
@@ -77,7 +90,7 @@ CodexApp *CodexApp::requestInstance(bool use_status_bar, bool use_navigation_bar
 }
 
 CodexApp::CodexApp(bool use_status_bar, bool use_navigation_bar):
-    App("Codex", nullptr, false, use_status_bar, use_navigation_bar)
+    App(makeCodexCoreConfig(), makeCodexPhoneConfig(use_status_bar, use_navigation_bar))
 {
     for (int i = 0; i < 6; ++i) {
         strncpy(_agent_phase[i], "IDLE", sizeof(_agent_phase[i]) - 1);

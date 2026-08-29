@@ -12,14 +12,6 @@ namespace esp_brookesia::systems::phone {
 
 constexpr uint32_t STYLESHEET_360_360_DARK_CORE_DISPLAY_BG_COLOR = 0x12151C;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#ifdef __cplusplus
-} 
-#endif
-
 constexpr base::Display::Data STYLESHEET_360_360_DARK_CORE_DISPLAY_DATA = {
     .background = {
         .color = gui::StyleColor::COLOR(STYLESHEET_360_360_DARK_CORE_DISPLAY_BG_COLOR),

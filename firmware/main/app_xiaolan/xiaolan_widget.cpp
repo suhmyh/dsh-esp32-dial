@@ -17,8 +17,14 @@ bool XiaolanWidget::begin(lv_obj_t *parent)
     if (!parent || _image) return false;
     _image = lv_image_create(parent);
     if (!_image) return false;
-    lv_obj_set_size(_image, 128, 139);
-    lv_obj_set_pos(_image, 220, 178);
+    constexpr lv_coord_t image_width = 128;
+    constexpr lv_coord_t image_height = 139;
+    lv_obj_set_size(_image, image_width, image_height);
+    const lv_coord_t parent_width = lv_obj_get_content_width(parent);
+    const lv_coord_t parent_height = lv_obj_get_content_height(parent);
+    lv_obj_set_pos(_image,
+                   parent_width > image_width ? (parent_width - image_width) / 2 : 0,
+                   parent_height > image_height ? (parent_height - image_height) / 2 : 0);
     lv_image_set_antialias(_image, false);
     lv_image_set_src(_image, &xiaolan_idle[0]);
     lv_obj_add_event_cb(_image, onTouch, LV_EVENT_PRESSING, this);
@@ -54,12 +60,19 @@ void XiaolanWidget::onTouch(lv_event_t *event)
             self->_drag_offset.x = point.x - area.x1;
             self->_drag_offset.y = point.y - area.y1;
         }
+        lv_obj_t *parent = lv_obj_get_parent(self->_image);
+        const int parent_width = parent ? lv_obj_get_content_width(parent) : 360;
+        const int parent_height = parent ? lv_obj_get_content_height(parent) : 360;
+        const int image_width = lv_obj_get_width(self->_image);
+        const int image_height = lv_obj_get_height(self->_image);
+        const int max_x = parent_width > image_width ? parent_width - image_width : 0;
+        const int max_y = parent_height > image_height ? parent_height - image_height : 0;
         int x = point.x - self->_drag_offset.x;
         int y = point.y - self->_drag_offset.y;
         if (x < 0) x = 0;
-        if (y < 34) y = 34;
-        if (x > 232) x = 232;
-        if (y > 215) y = 215;
+        if (y < 0) y = 0;
+        if (x > max_x) x = max_x;
+        if (y > max_y) y = max_y;
         lv_obj_set_pos(self->_image, x, y);
     } else if (code == LV_EVENT_RELEASED || code == LV_EVENT_CLICKED) {
         self->_dragging = false;

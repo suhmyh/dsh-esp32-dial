@@ -30,7 +30,8 @@ constexpr AppLauncherData STYLESHEET_360_360_DARK_APP_LAUNCHER_DATA = {
         .size = gui::StyleSize::RECT_PERCENT(100, 100),
     },
     .table = {
-        .default_num = 4,
+        // Page 0 is the Xiaolan home page; page 1 contains the Codex plugin.
+        .default_num = 2,
         .size = gui::StyleSize::RECT_PERCENT(80, 70),
     },
     .indicator = {

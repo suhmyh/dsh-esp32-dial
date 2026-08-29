@@ -291,6 +291,14 @@ bool AppLauncher::scrollToLeftPage(void)
     return scrollToPage(next_page_index);
 }
 
+lv_obj_t *AppLauncher::getPageMainObject(uint8_t index) const
+{
+    if (!checkInitialized() || index >= _mix_objs.size()) {
+        return nullptr;
+    }
+    return _mix_objs[index].page_main_obj.get();
+}
+
 bool AppLauncher::checkVisible(void) const
 {
     ESP_UTILS_CHECK_FALSE_RETURN(checkInitialized(), false, "Not initialized");

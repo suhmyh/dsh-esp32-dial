@@ -50,6 +50,9 @@ public:
     bool scrollToRightPage(void);
     bool scrollToLeftPage(void);
 
+    /** Return the full-size container for a launcher page. */
+    lv_obj_t *getPageMainObject(uint8_t index) const;
+
     bool checkInitialized(void) const
     {
         return (_main_obj != nullptr);
