@@ -1,13 +1,13 @@
-# Waveshare Desktop + DSH Apps
+# Waveshare Desktop + Codex / DSH Apps
 
 这个仓库现在以 **Waveshare ESP32-S3-Touch-LCD-1.85B Desktop** 为唯一固件基座：
 
 - ESP-Brookesia Phone 负责桌面、状态栏、应用启动器、返回/最近任务和页面生命周期；
 - 设置、音乐、相册是基座自带应用；
-- DSH、Pocket Watch、计分板、桌宠和后续功能都以 Phone App / plugin 形式接入；
+- Codex 控制台和 DSH 都以独立 Phone App / plugin 形式接入，桌面只负责启动和返回；
 - 原来的 Arduino `DialUi + AppShell` 已移出构建，不再作为系统壳层。
 
-上游桌面参考：[STUPIDDDD0/waveshare-ESP32-S3-Touch-LCD-1.85B-desktop](https://github.com/STUPIDDDD0/waveshare-ESP32-S3-Touch-LCD-1.85B-desktop)。本仓库保留其 ESP-IDF/LVGL9 桌面运行时，并在 `firmware/main/app_dsh/` 增加 DSH 应用插件。
+上游桌面参考：[STUPIDDDD0/waveshare-ESP32-S3-Touch-LCD-1.85B-desktop](https://github.com/STUPIDDDD0/waveshare-ESP32-S3-Touch-LCD-1.85B-desktop)。本仓库保留其 ESP-IDF/LVGL9 桌面运行时，并在 `firmware/main/app_codex/`、`firmware/main/app_dsh/` 增加两个独立应用插件。
 
 ## 在线烧录
 
@@ -20,6 +20,7 @@ firmware/
   components/                  ESP-Brookesia、Waveshare BSP 及依赖
   main/main.cpp                Desktop 唯一入口
   main/app_dsh/                DSH Phone App 插件
+  main/app_codex/              Codex 全屏控制台 Phone App 插件
   main/app_wrappers/           Settings/Music/Gallery 应用
   main/dark/                   360x360 暗色桌面样式
 bridge/                         电脑侧 Codex/DSH 桥接进程

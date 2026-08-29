@@ -676,7 +676,8 @@ function startCodexBackend() {
 			next.running !== previous.running ||
 			next.sessions !== previous.sessions ||
 			next.steps !== previous.steps ||
-			JSON.stringify(next.acts) !== JSON.stringify(previous.acts) ||
+		JSON.stringify(next.acts) !== JSON.stringify(previous.acts) ||
+			JSON.stringify(next.agents) !== JSON.stringify(previous.agents) ||
 			next.clock !== previous.clock;
 		if (changed) {
 			broadcast(toFrame(next));

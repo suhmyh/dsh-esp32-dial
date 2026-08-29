@@ -25,6 +25,7 @@
 #include "app_wrappers/music_app.hpp"
 #include "app_wrappers/gallery_app.hpp"
 #include "app_dsh/dsh_app.hpp"
+#include "app_codex/codex_app.hpp"
 #include "app_msg/submenu_ui/set_wifi_service.h"
 
 // C headers
@@ -196,6 +197,10 @@ extern "C" void app_main(void)
         /* DSH is a normal Desktop application. It does not own the shell. */
         auto dshApp = DshApp::requestInstance();
         ESP_UTILS_CHECK_FALSE_EXIT(phone->installApp(dshApp), "Install DshApp failed");
+
+        /* Codex is a separate full-screen controller app. */
+        auto codexApp = CodexApp::requestInstance();
+        ESP_UTILS_CHECK_FALSE_EXIT(phone->installApp(codexApp), "Install CodexApp failed");
 
         /* Create a timer to update the clock */
         lv_timer_create([](lv_timer_t *t) {

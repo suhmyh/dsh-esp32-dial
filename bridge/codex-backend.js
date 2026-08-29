@@ -36,6 +36,29 @@ function latestTurn(thread) {
 	return turns[0] ?? null;
 }
 
+function deriveAgent(thread, index) {
+	const turn = latestTurn(thread);
+	const items = Array.isArray(turn?.items) ? turn.items : [];
+	const activities = items.map(itemActivity).filter(Boolean);
+	const runningItem = activities.find((item) => item.r === true);
+	let phase = "idle";
+	if (turn?.status === ACTIVE_TURN) phase = runningItem ? "working" : "thinking";
+	else if (turn?.status === "failed" || turn?.status === "error") phase = "error";
+	else if (turn?.status === "completed") phase = "done";
+	const detail = phase === "working" ? "RUNNING"
+		: phase === "thinking" ? "THINKING"
+		: phase === "done" ? "DONE"
+		: phase === "error" ? "ERROR"
+		: "IDLE";
+	return {
+		id: String(thread?.id ?? `agent-${index + 1}`).slice(0, 48),
+		label: `A${index + 1}`,
+		phase,
+		running: phase === "working" || phase === "thinking",
+		detail: trimLine(detail, 32),
+	};
+}
+
 function deriveCodexState(threads, previous, now = Date.now()) {
 	const items = Array.isArray(threads) ? threads : [];
 	const enriched = items.map((thread) => ({ thread, turn: latestTurn(thread) }));
@@ -65,6 +88,7 @@ function deriveCodexState(threads, previous, now = Date.now()) {
 	const title = "Codex";
 	const turnCount = selected.thread?.turns?.length ?? 0;
 	const steps = turn?.items?.length ?? 0;
+	const agents = enriched.slice(0, 6).map(({ thread }, index) => deriveAgent(thread, index));
 	return {
 		phase,
 		title: trimLine(title, 48) || "Codex",
@@ -76,6 +100,7 @@ function deriveCodexState(threads, previous, now = Date.now()) {
 		sessions: items.length,
 		running,
 		acts: activities,
+		agents,
 		stats: "",
 		s: null,
 		clock: `${String(new Date().getHours()).padStart(2, "0")}:${String(new Date().getMinutes()).padStart(2, "0")}`,
@@ -201,7 +226,7 @@ class CodexAppServer {
 
 	fail(error) {
 		this.onOnline(false, error);
-		this.onState({ t: "state", phase: "error", title: "CODEX OFFLINE", detail: "Check Codex app-server", ctx: 0, turns: 0, steps: 0, perm: "", sessions: 0, running: 0, acts: [], seq: 0 });
+		this.onState({ t: "state", phase: "error", title: "CODEX OFFLINE", detail: "Check Codex app-server", ctx: 0, turns: 0, steps: 0, perm: "", sessions: 0, running: 0, acts: [], agents: [], seq: 0 });
 	}
 
 	stop() {
