@@ -14,7 +14,9 @@ for index in range(7):
     cell = cell.resize((128, 139), Image.Resampling.NEAREST)
     pixels = bytearray()
     for red, green, blue, alpha in cell.getdata():
-        pixels.extend((red, green, blue, alpha) if alpha else (0, 0, 0, 0))
+        # LVGL's ARGB8888 pixels are stored in memory as BGRA on ESP32
+        # (lv_color32_t fields are blue, green, red, alpha).
+        pixels.extend((blue, green, red, alpha) if alpha else (0, 0, 0, 0))
     frames.append(bytes(pixels))
 
 header = ["#pragma once", "#include \"lvgl.h\"", "", "#define XIAOLAN_IDLE_FRAMES 7", "#ifdef __cplusplus", "extern \"C\" {", "#endif", "extern const lv_image_dsc_t xiaolan_idle[XIAOLAN_IDLE_FRAMES];", "#ifdef __cplusplus", "}", "#endif", ""]

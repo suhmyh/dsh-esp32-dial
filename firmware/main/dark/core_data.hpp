@@ -10,14 +10,11 @@
 #include "lvgl.h"
 namespace esp_brookesia::systems::phone {
 
-constexpr uint32_t STYLESHEET_360_360_DARK_CORE_DISPLAY_BG_COLOR = 0x1A1A1A;
+constexpr uint32_t STYLESHEET_360_360_DARK_CORE_DISPLAY_BG_COLOR = 0x12151C;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-// 声明您的图片资源
-LV_IMG_DECLARE(scr_bg);
 
 #ifdef __cplusplus
 } 
@@ -26,7 +23,10 @@ LV_IMG_DECLARE(scr_bg);
 constexpr base::Display::Data STYLESHEET_360_360_DARK_CORE_DISPLAY_DATA = {
     .background = {
         .color = gui::StyleColor::COLOR(STYLESHEET_360_360_DARK_CORE_DISPLAY_BG_COLOR),
-        .wallpaper_image_resource = &scr_bg,
+        // Keep the desktop a uniform neutral charcoal.  The launcher is
+        // intentionally not backed by a wallpaper image so the Xiaolan
+        // sprite remains color-accurate and no stale wallpaper can bleed in.
+        .wallpaper_image_resource = nullptr,
     },
     .text = {
         .default_fonts_num = 21,
