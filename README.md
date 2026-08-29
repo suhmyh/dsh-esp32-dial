@@ -1,78 +1,32 @@
-# DSH 圆屏仪表盘 (dsh-esp32-dial)
+# Waveshare Desktop + DSH Apps
 
-把 **Waveshare ESP32-S3-Touch-LCD-1.85B** 变成 DeepSeek Harness 的桌面状态盘：
+这个仓库现在以 **Waveshare ESP32-S3-Touch-LCD-1.85B Desktop** 为唯一固件基座：
 
-- **显示** DSH 当前状态 —— 时钟、上下文占用环、正在跑的命令
-- **决策** —— DSH 请求审批时屏幕黄闪 + 提示音，两个物理按钮：允许 / 拒绝
-- **零配置烧录** —— 云端构建 + 网页烧录，不需要在本机装任何工具链
+- ESP-Brookesia Phone 负责桌面、状态栏、应用启动器、返回/最近任务和页面生命周期；
+- 设置、音乐、相册是基座自带应用；
+- DSH、Pocket Watch、计分板、桌宠和后续功能都以 Phone App / plugin 形式接入；
+- 原来的 Arduino `DialUi + AppShell` 已移出构建，不再作为系统壳层。
 
-```
-┌──────────────┐     WiFi LAN      ┌──────────────┐    loopback    ┌──────────┐
-│  圆屏仪表盘    │ ◄──────────────► │  Node 桥接进程  │ ◄───────────► │    DSH    │
-│  (ESP32-S3)   │    WS :3082/dev   │  (bridge.js)  │  Typert RPC   │   :3080   │
-└──────────────┘    token 认证      └──────────────┘               └──────────┘
-```
+上游桌面参考：[STUPIDDDD0/waveshare-ESP32-S3-Touch-LCD-1.85B-desktop](https://github.com/STUPIDDDD0/waveshare-ESP32-S3-Touch-LCD-1.85B-desktop)。本仓库保留其 ESP-IDF/LVGL9 桌面运行时，并在 `firmware/main/app_dsh/` 增加 DSH 应用插件。
 
-## 快速开始
+## 在线烧录
 
-### 1. 网页烧录（无需本地工具链）
+打开 [在线烧录页面](https://suhmyh.github.io/dsh-esp32-dial/)，连接标有 USB 的接口，选择 COM3 对应的串口后烧录。每次推送到 `main`，GitHub Actions 会使用 ESP-IDF 5.5.3 构建并发布合并镜像。
 
-打开 GitHub Pages 上的 **[烧录页面](https://suhmyh.github.io/dsh-esp32-dial/)**：
+## 构建结构
 
-1. USB-C 连接板子（用标 `USB` 的口）
-2. 点"下载云端最新固件"
-3. 点"连接并烧录" → 选 Chrome/Edge 弹出的串口
-4. 板子重启后显示配网二维码
-
-如果连接失败：按住 `BOOT` → 点 `RESET` → 松开 `BOOT` → 重试。
-
-### 2. 手机配网
-
-1. 相机扫屏幕上的二维码 → 加入 `DSH-Dial-XXXX`
-2. 浏览器打开 `http://192.168.4.1`
-3. 填 WiFi + 电脑局域网 IP + 桥接 token → 保存重启
-
-以后换网络：**长按圆屏**重新配网，或插 USB 串口 `help`。
-
-### 3. 跑桥接（电脑上）
-
-```bash
-cd bridge
-npm start          # 或 node bridge.js
-# 首次启动会打印 device token（配网时要用）
+```text
+firmware/
+  components/                  ESP-Brookesia、Waveshare BSP 及依赖
+  main/main.cpp                Desktop 唯一入口
+  main/app_dsh/                DSH Phone App 插件
+  main/app_wrappers/           Settings/Music/Gallery 应用
+  main/dark/                   360x360 暗色桌面样式
+bridge/                         电脑侧 DSH 桥接进程
+docs/                           WebSerial 烧录页面和设计文档
+firmware-legacy/                本地保留的旧 Arduino 实现，不参与构建
 ```
 
-## 传统本地构建（可选）
+## 许可证
 
-```bash
-cd firmware
-python -m pip install platformio
-pio run            # 编译
-pio run -t upload  # 烧录（USB 连接）
-```
-
-## 仓库结构
-
-```
-firmware/     ESP32-S3 固件（WiFi/WebSocket 客户端 + LVGL 圆屏 UI + 配网门户）
-bridge/       Node 主机桥接进程（零 npm 依赖，轮询 DSH + WebSocket 服务）
-docs/         GitHub Pages 烧录页面（esptool-js + WebSerial）
-.github/      Actions 云构建 → 产物自动部署到 Pages
-```
-
-## 云构建
-
-每次 push 到 `main` 自动触发 [Actions](./.github/workflows/build-firmware.yml)：
-
-1. 云端安装 PlatformIO → 编译固件
-2. 合并 bootloader + 分区表 + 应用为单文件镜像
-3. 发布到 GitHub Pages → 烧录页面上的"下载云端最新固件"即最新版
-4. 打 `v*` tag 额外生成 Release 附件
-
-## 协议
-
-桥接 ↔ 固件 ↔ DSH 的完整 wire 契约见 [`协议规范.md`](docs/协议规范.md)。
-
-## 许可
-
-MIT。板级驱动来源：`imliubo/codex-micro-4-core2` (MIT) → `Codex-Macro32` (MIT/Apache-2.0)，出处与逐文件许可证见 [`firmware/vendor/PROVENANCE.md`](firmware/vendor/PROVENANCE.md)。
+本项目新增代码采用 MIT。ESP-Brookesia 和 Waveshare 组件的原许可证随 `firmware/components` 保留。
