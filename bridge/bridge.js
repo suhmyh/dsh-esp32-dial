@@ -38,6 +38,7 @@ const CONFIG = {
 	/** Codex is the primary desktop backend; set BRIDGE_BACKEND=dsh for legacy DSH. */
 	backend: process.env.BRIDGE_BACKEND ?? "codex",
 	/** Port the device connects to. 3080 = DSH, 3081 = remote gateway. */
+	listenHost: process.env.BRIDGE_LISTEN_HOST ?? "0.0.0.0",
 	listenPort: Number(process.env.BRIDGE_PORT ?? 3082),
 	/** DSH's loopback web server. */
 	dshHost: "127.0.0.1",
@@ -1222,8 +1223,8 @@ server.on("upgrade", (req, socket, head) => {
 });
 
 function startBridge() {
-	server.listen(CONFIG.listenPort, "0.0.0.0", () => {
-		log(`bridge listening on ws://0.0.0.0:${CONFIG.listenPort}/dev`);
+	server.listen(CONFIG.listenPort, CONFIG.listenHost, () => {
+		log(`bridge listening on ws://${CONFIG.listenHost}:${CONFIG.listenPort}/dev`);
 		log(`device token: ${TOKEN}`);
 		if (CONFIG.backend === "codex") log("Codex target: local app-server (codex app-server --stdio)");
 		else log(`DSH target: http://${CONFIG.dshHost}:${CONFIG.dshPort}`);
