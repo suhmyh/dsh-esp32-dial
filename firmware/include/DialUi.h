@@ -18,17 +18,10 @@
 #include <ArduinoJson.h>
 #include <lvgl.h>
 
-/** The five dial states, matching the bridge's `phase` field. */
-enum class DialPhase : uint8_t {
-  Idle,
-  Working,
-  Thinking,    // waiting for the first LLM token
-  Streaming,   // LLM tokens are arriving (输出中)
-  Waiting,
-  Done,
-  Error,
-  Offline   // bridge disconnected — not a bridge phase, injected by firmware
-};
+#include "PetState.h"
+
+/** Backwards-compatible name used by the Codex view implementation. */
+using DialPhase = PetPhase;
 
 /** One ask button description. */
 struct AskOption {
@@ -56,10 +49,7 @@ struct Ask {
  * a status display. Three lines is what the circle fits without shrinking the
  * text past reading size at arm's length.
  */
-struct ActivityLine {
-  char text[44];
-  bool running;  // true = happening now (highlighted), false = finished
-};
+using ActivityLine = PetActivity;
 
 /** How many activity lines the working phase keeps on screen. */
 constexpr uint8_t kActivityLines = 3;
@@ -77,6 +67,9 @@ class DialUi {
   // ── state frame ──────────────────────────────────────────────────────
   /** Update the dial from a bridge `state` frame. */
   void setState(const JsonDocument& doc);
+
+  /** Render the transport-neutral projection plus its structured fields. */
+  void setState(const PetState& state, const JsonDocument& doc);
 
   // ── ask frame ────────────────────────────────────────────────────────
   /** Show an ask overlay. */
@@ -147,13 +140,6 @@ class DialUi {
   /** Record an answer; called by the LVGL button event handler. */
   void recordAnswer(const char* optionId);
 
-  // ── desktop container ───────────────────────────────────────────────
-  /** Toggle between the desktop launcher and the full-screen Codex app. */
-  void toggleDesktop();
-
-  /** True while the launcher is visible. */
-  bool isDesktop() const { return desktopVisible_; }
-
   // ── brightness ───────────────────────────────────────────────────────
   void setBacklight(uint8_t level);
 
@@ -208,15 +194,6 @@ class DialUi {
   bool provisioning_ = false;
   bool reprovisionRequested_ = false;
 
-  // Desktop launcher. The launcher is intentionally a sibling of the dial
-  // rather than a second LVGL screen: state frames can keep updating the Codex
-  // app while it is in the background, and returning to it is instantaneous.
-  lv_obj_t* desktopBg_ = nullptr;
-  lv_obj_t* desktopTitle_ = nullptr;
-  lv_obj_t* desktopHint_ = nullptr;
-  lv_obj_t* desktopAppButtons_[3] = {nullptr};
-  bool desktopVisible_ = false;
-
   // State
   DialPhase phase_ = DialPhase::Offline;
   unsigned long doneShowMs_ = 0;     // remaining ms of the done flash
@@ -243,8 +220,6 @@ class DialUi {
   void buildMainScreen();
   void buildAskOverlay();
   void buildProvisioningScreen();
-  void buildDesktop();
-  void setDesktopVisible(bool visible);
   void updateArc(uint8_t ctxPercent);
   void setPhaseLabel(DialPhase phase);
   void setActivity(const JsonDocument& doc);   // working-phase tool-call list
@@ -265,11 +240,8 @@ class DialUi {
   /** LVGL long-press trampoline for the dial background. */
   static void backgroundLongPressed(lv_event_t* event);
 
-  /** LVGL double-click trampoline for the dial background. */
+  /** Short-click trampoline used by AppShell's double-tap recogniser. */
   static void backgroundDoubleClicked(lv_event_t* event);
-
-  /** Launcher tile callback; the tile index rides in event user data. */
-  static void desktopButtonClicked(lv_event_t* event);
 
   // LVGL style
   static lv_style_t mainStyle_;

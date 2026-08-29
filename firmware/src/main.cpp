@@ -20,6 +20,7 @@
 #include <lvgl.h>
 
 #include "AudioFeedback.h"
+#include "AppShell.h"
 #include "Config.h"
 #include "Console.h"
 #include "DialUi.h"
@@ -120,6 +121,7 @@ void setup() {
 
   // ── Dial UI (needs LVGL, builds the screens) ───────────────────────────
   dialUi.begin();
+  appShell.begin();
   Serial.println("[ui] layouts ready");
 
   // ── Settings ───────────────────────────────────────────────────────────
