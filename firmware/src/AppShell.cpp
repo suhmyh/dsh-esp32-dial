@@ -59,7 +59,7 @@ static void cardStyle(lv_obj_t* card, lv_color_t color) {
   lv_obj_set_style_border_width(card, 0, 0);
   lv_obj_set_style_shadow_width(card, 10, 0);
   lv_obj_set_style_shadow_opa(card, 45, 0);
-  lv_obj_set_style_shadow_color(card, LV_COLOR_BLACK, 0);
+  lv_obj_set_style_shadow_color(card, LV_COLOR_MAKE(0x00, 0x00, 0x00), 0);
   lv_obj_set_style_bg_color(card, kPanelPressed, LV_STATE_PRESSED);
 }
 
