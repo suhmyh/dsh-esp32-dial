@@ -23,7 +23,7 @@
 // Neutral charcoal (#12151C), RGB565.  The range initializer keeps this
 // generated asset compact while still providing the full 360x360 image.
 const LV_ATTRIBUTE_MEM_ALIGN LV_ATTRIBUTE_LARGE_CONST LV_ATTRIBUTE_IMAGE_SCR_BG
-const uint16_t scr_bg_map[360 * 360] = {
+uint16_t scr_bg_map[360 * 360] = {
   [0 ... (360 * 360 - 1)] = 0x10A3,
 };
 

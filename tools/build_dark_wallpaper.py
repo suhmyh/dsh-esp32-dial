@@ -43,7 +43,7 @@ def main() -> None:
 // Neutral charcoal (#12151C), RGB565.  The range initializer keeps this
 // generated asset compact while still providing the full 360x360 image.
 const LV_ATTRIBUTE_MEM_ALIGN LV_ATTRIBUTE_LARGE_CONST LV_ATTRIBUTE_IMAGE_SCR_BG
-const uint16_t scr_bg_map[WIDTH * HEIGHT] = {
+uint16_t scr_bg_map[WIDTH * HEIGHT] = {
   [0 ... (WIDTH * HEIGHT - 1)] = RGB565_VALUE,
 };
 
