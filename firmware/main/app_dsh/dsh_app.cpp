@@ -56,11 +56,11 @@ bool DshApp::run(void)
     lv_screen_load(screen);
 
     lv_obj_t *title = make_label(screen, "DSH", lv_color_hex(0xFFFFFF), 300);
-    lv_obj_set_style_text_font(title, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_32, 0);
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 48);
 
     lv_obj_t *state = make_label(screen, "Desktop Plugin", lv_color_hex(0x2D98DA), 300);
-    lv_obj_set_style_text_font(state, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(state, &lv_font_montserrat_20, 0);
     lv_obj_align(state, LV_ALIGN_CENTER, 0, -12);
 
     lv_obj_t *detail = make_label(screen, "Codex bridge adapter", lv_color_hex(0xA6ADBB), 300);
