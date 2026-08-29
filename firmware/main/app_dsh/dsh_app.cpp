@@ -169,7 +169,7 @@ void DshApp::websocketEvent(void *handler_args, esp_event_base_t, int32_t event_
         self->_connected = true;
         self->_last_frame_ms = nowMs();
         {
-            esp_brookesia::systems::LvLockGuard guard;
+            esp_brookesia::gui::LvLockGuard guard;
             self->setConnection("CONNECTED", 0x39D98A);
         }
         constexpr char hello[] = "{\"t\":\"hello\",\"fw\":\"dsh-brookesia/1.0\",\"board\":\"ESP32-S3-Touch-LCD-1.85B\"}";
@@ -177,7 +177,7 @@ void DshApp::websocketEvent(void *handler_args, esp_event_base_t, int32_t event_
     } else if (event_id == WEBSOCKET_EVENT_DISCONNECTED || event_id == WEBSOCKET_EVENT_ERROR || event_id == WEBSOCKET_EVENT_CLOSED) {
         self->_connected = false;
         {
-            esp_brookesia::systems::LvLockGuard guard;
+            esp_brookesia::gui::LvLockGuard guard;
             self->setConnection("OFFLINE / RETRYING", 0xFFB454);
             strncpy(self->_phase_name, "OFFLINE", sizeof(self->_phase_name) - 1);
             self->refreshUi();
@@ -203,7 +203,7 @@ void DshApp::handleMessage(const char *text, size_t length)
     _last_frame_ms = nowMs();
     const char *type = jsonString(root, "t");
     {
-        esp_brookesia::systems::LvLockGuard guard;
+        esp_brookesia::gui::LvLockGuard guard;
         if (strcmp(type, "state") == 0) applyState(root);
         else if (strcmp(type, "ask") == 0) showAsk(root);
         else if (strcmp(type, "pong") == 0) setConnection("CONNECTED", 0x39D98A);
@@ -375,7 +375,7 @@ bool DshApp::run(void)
         lv_obj_add_event_cb(_ask_buttons[i], [](lv_event_t *event) {
             auto *self = static_cast<DshApp *>(lv_event_get_user_data(event));
             if (!self) return;
-            lv_obj_t *target = lv_event_get_target(event);
+            lv_obj_t *target = static_cast<lv_obj_t *>(lv_event_get_target(event));
             for (int button = 0; button < 3; ++button) {
                 if (self->_ask_buttons[button] == target) {
                     self->sendAnswer(button);
