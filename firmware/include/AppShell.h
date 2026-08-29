@@ -35,6 +35,10 @@ class AppShell {
   lv_obj_t* subtitle_ = nullptr;
   lv_obj_t* appTitle_ = nullptr;
   lv_obj_t* appBody_ = nullptr;
+  lv_obj_t* statusClock_ = nullptr;
+  lv_obj_t* statusWifi_ = nullptr;
+  lv_obj_t* statusBattery_ = nullptr;
+  lv_obj_t* statusValue_ = nullptr;
   lv_obj_t* scoreLeft_ = nullptr;
   lv_obj_t* scoreRight_ = nullptr;
   int scoreLeftValue_ = 0;

@@ -26,6 +26,7 @@ if (-not (Test-Path $conv)) {
 # which uses the host's fonts, not LVGL's.
 $sources = @(
     (Join-Path $root 'firmware\src\DialUi.cpp'),
+    (Join-Path $root 'firmware\src\AppShell.cpp'),
     (Join-Path $root 'firmware\src\main.cpp'),
     (Join-Path $root 'firmware\src\Provision.cpp'),
     (Join-Path $root 'firmware\include\Provision.h'),
