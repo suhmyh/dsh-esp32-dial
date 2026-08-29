@@ -10,3 +10,6 @@ Thumbs.db
 # Temp probes
 probe-*.js
 verify-*.js
+firmware-legacy/
+artifacts/
+references/
