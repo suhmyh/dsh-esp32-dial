@@ -139,8 +139,8 @@ void AppShell::buildAppPage() {
 
   scoreLeft_ = makeLabel(appPage_, "0", 60, kShellWhite);
   scoreRight_ = makeLabel(appPage_, "0", 60, kShellWhite);
-  lv_obj_set_style_text_font(scoreLeft_, &lv_font_montserrat_24, 0);
-  lv_obj_set_style_text_font(scoreRight_, &lv_font_montserrat_24, 0);
+  lv_obj_set_style_text_font(scoreLeft_, &lv_font_montserrat_20, 0);
+  lv_obj_set_style_text_font(scoreRight_, &lv_font_montserrat_20, 0);
   lv_obj_align(scoreLeft_, LV_ALIGN_CENTER, -70, -24);
   lv_obj_align(scoreRight_, LV_ALIGN_CENTER, 70, -24);
 }
