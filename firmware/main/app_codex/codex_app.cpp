@@ -52,6 +52,12 @@ static int jsonInt(cJSON *root, const char *key, int fallback = 0)
     return (item && cJSON_IsNumber(item)) ? item->valueint : fallback;
 }
 
+static bool jsonBool(cJSON *root, const char *key, bool fallback = false)
+{
+    cJSON *item = cJSON_GetObjectItemCaseSensitive(root, key);
+    return item ? cJSON_IsTrue(item) : fallback;
+}
+
 static uint32_t nowMs()
 {
     return static_cast<uint32_t>(esp_timer_get_time() / 1000ULL);
@@ -59,8 +65,8 @@ static uint32_t nowMs()
 
 static lv_color_t phaseColor(const char *phase)
 {
-    if (strcmp(phase, "WORKING") == 0) return lv_color_hex(0x3CB371);
-    if (strcmp(phase, "THINKING") == 0) return lv_color_hex(0xF4C430);
+    if (strcmp(phase, "WORKING") == 0 || strcmp(phase, "STREAMING") == 0) return lv_color_hex(0x3CB371);
+    if (strcmp(phase, "THINKING") == 0 || strcmp(phase, "WAITING") == 0) return lv_color_hex(0xF4C430);
     if (strcmp(phase, "DONE") == 0) return lv_color_hex(0x52A7FF);
     if (strcmp(phase, "ERROR") == 0) return lv_color_hex(0xE74C3C);
     if (strcmp(phase, "IDLE") == 0) return lv_color_hex(0x8892A6);
@@ -71,7 +77,9 @@ static const char *phaseName(const char *phase)
 {
     if (!phase || !*phase) return "IDLE";
     if (strcmp(phase, "working") == 0) return "WORKING";
+    if (strcmp(phase, "streaming") == 0) return "STREAMING";
     if (strcmp(phase, "thinking") == 0) return "THINKING";
+    if (strcmp(phase, "waiting") == 0) return "WAITING";
     if (strcmp(phase, "done") == 0) return "DONE";
     if (strcmp(phase, "error") == 0) return "ERROR";
     if (strcmp(phase, "offline") == 0) return "OFFLINE";
@@ -207,9 +215,10 @@ void CodexApp::handleMessage(const char *text, size_t length)
     if (!root) return;
     _last_frame_ms = nowMs();
     const char *type = jsonString(root, "t");
-    if (strcmp(type, "state") == 0) {
+    if (strcmp(type, "state") == 0 || strcmp(type, "ask") == 0) {
         esp_brookesia::gui::LvLockGuard guard;
-        applyState(root);
+        if (strcmp(type, "state") == 0) applyState(root);
+        else showAsk(root);
     } else if (strcmp(type, "pong") == 0) {
         esp_brookesia::gui::LvLockGuard guard;
         setConnection("CONNECTED", 0x3CB371);
@@ -221,11 +230,30 @@ void CodexApp::applyState(void *json)
 {
     auto *root = static_cast<cJSON *>(json);
     strncpy(_phase_name, phaseName(jsonString(root, "phase")), sizeof(_phase_name) - 1);
+    const char *title = jsonString(root, "title");
+    const char *detail = jsonString(root, "detail");
+    if (title[0]) strncpy(_state_title, title, sizeof(_state_title) - 1);
+    if (detail[0]) strncpy(_state_summary, detail, sizeof(_state_summary) - 1);
     _context_percent = jsonInt(root, "ctx", 0);
     if (_context_percent < 0) _context_percent = 0;
     if (_context_percent > 100) _context_percent = 100;
     _running = jsonInt(root, "running", 0);
     _sessions = jsonInt(root, "sessions", 0);
+    for (int i = 0; i < 3; ++i) {
+        _state_activities[i][0] = '\0';
+        _activity_running[i] = false;
+    }
+    cJSON *acts = cJSON_GetObjectItemCaseSensitive(root, "acts");
+    if (acts && cJSON_IsArray(acts)) {
+        int i = 0;
+        cJSON *act = nullptr;
+        cJSON_ArrayForEach(act, acts) {
+            if (i >= 3 || !cJSON_IsObject(act)) break;
+            strncpy(_state_activities[i], jsonString(act, "t"), sizeof(_state_activities[i]) - 1);
+            _activity_running[i] = jsonBool(act, "r");
+            ++i;
+        }
+    }
     for (int i = 0; i < 6; ++i) {
         strncpy(_agent_phase[i], "IDLE", sizeof(_agent_phase[i]) - 1);
         strncpy(_agent_detail[i], "IDLE", sizeof(_agent_detail[i]) - 1);
@@ -245,6 +273,53 @@ void CodexApp::applyState(void *json)
     refreshUi();
 }
 
+void CodexApp::showAsk(void *json)
+{
+    auto *root = static_cast<cJSON *>(json);
+    strncpy(_ask_id, jsonString(root, "id"), sizeof(_ask_id) - 1);
+    _ask_count = 0;
+    if (_ask_title) lv_label_set_text(_ask_title, jsonString(root, "title"));
+    if (_ask_body) lv_label_set_text(_ask_body, jsonString(root, "body"));
+    cJSON *options = cJSON_GetObjectItemCaseSensitive(root, "options");
+    if (options && cJSON_IsArray(options)) {
+        cJSON *option = nullptr;
+        cJSON_ArrayForEach(option, options) {
+            if (_ask_count >= 3 || !cJSON_IsObject(option)) break;
+            strncpy(_ask_option_ids[_ask_count], jsonString(option, "id"), sizeof(_ask_option_ids[0]) - 1);
+            if (_ask_buttons[_ask_count]) {
+                lv_obj_remove_flag(_ask_buttons[_ask_count], LV_OBJ_FLAG_HIDDEN);
+                lv_label_set_text(lv_obj_get_child(_ask_buttons[_ask_count], 0), jsonString(option, "label"));
+            }
+            ++_ask_count;
+        }
+    }
+    for (int i = _ask_count; i < 3; ++i) if (_ask_buttons[i]) lv_obj_add_flag(_ask_buttons[i], LV_OBJ_FLAG_HIDDEN);
+    if (_ask_panel) lv_obj_remove_flag(_ask_panel, LV_OBJ_FLAG_HIDDEN);
+}
+
+void CodexApp::hideAsk()
+{
+    if (_ask_panel) lv_obj_add_flag(_ask_panel, LV_OBJ_FLAG_HIDDEN);
+    _ask_id[0] = '\0';
+    _ask_count = 0;
+}
+
+void CodexApp::sendAnswer(int index)
+{
+    if (!_ws || !_connected || index < 0 || index >= _ask_count || !_ask_id[0]) return;
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "t", "answer");
+    cJSON_AddStringToObject(root, "id", _ask_id);
+    cJSON_AddStringToObject(root, "choice", _ask_option_ids[index]);
+    char *text = cJSON_PrintUnformatted(root);
+    if (text) {
+        esp_websocket_client_send_text(_ws, text, strlen(text), pdMS_TO_TICKS(1000));
+        free(text);
+    }
+    cJSON_Delete(root);
+    hideAsk();
+}
+
 void CodexApp::selectAgent(int index)
 {
     if (index < 0 || index >= 6) return;
@@ -260,6 +335,12 @@ void CodexApp::refreshUi()
 {
     if (!_screen) return;
     lv_color_t global = phaseColor(_phase_name);
+    if (_phase) {
+        lv_label_set_text(_phase, _phase_name);
+        lv_obj_set_style_text_color(_phase, global, 0);
+    }
+    if (_title) lv_label_set_text(_title, _state_title);
+    if (_state_detail) lv_label_set_text(_state_detail, _state_summary);
     char quota[32];
     snprintf(quota, sizeof(quota), "CTX %d%%", _context_percent);
     lv_label_set_text(_quota, quota);
@@ -273,6 +354,16 @@ void CodexApp::refreshUi()
     snprintf(title, sizeof(title), "AGENT %d  %s", _selected_index + 1, _agent_phase[_selected_index]);
     lv_label_set_text(_selected, title);
     lv_label_set_text(_detail, _agent_detail[_selected_index]);
+    for (int i = 0; i < 3; ++i) {
+        if (_state_activities[i][0]) {
+            char line[60];
+            snprintf(line, sizeof(line), "%s %s", _activity_running[i] ? ">" : "-", _state_activities[i]);
+            lv_label_set_text(_activities[i], line);
+            lv_obj_remove_flag(_activities[i], LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(_activities[i], LV_OBJ_FLAG_HIDDEN);
+        }
+    }
     for (int i = 0; i < 6; ++i) {
         char label[48];
         snprintf(label, sizeof(label), "A%d\n%s", i + 1, _agent_phase[i]);
@@ -299,9 +390,20 @@ bool CodexApp::run(void)
     lv_obj_set_style_text_align(_connection, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(_connection, LV_ALIGN_TOP_MID, 0, 30);
 
+    _phase = makeLabel(_screen, "OFFLINE", lv_color_hex(0xE0A34A), 220);
+    lv_obj_set_style_text_font(_phase, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_align(_phase, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(_phase, LV_ALIGN_TOP_MID, 0, 51);
+    _title = makeLabel(_screen, _state_title, lv_color_hex(0xFFFFFF), 320);
+    lv_obj_set_style_text_align(_title, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(_title, LV_ALIGN_TOP_MID, 0, 74);
+    _state_detail = makeLabel(_screen, _state_summary, lv_color_hex(0x8892A6), 320);
+    lv_obj_set_style_text_align(_state_detail, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(_state_detail, LV_ALIGN_TOP_MID, 0, 96);
+
     _arc = lv_arc_create(_screen);
-    lv_obj_set_size(_arc, 96, 96);
-    lv_obj_align(_arc, LV_ALIGN_TOP_MID, 0, 142);
+    lv_obj_set_size(_arc, 82, 82);
+    lv_obj_align(_arc, LV_ALIGN_TOP_MID, 0, 119);
     lv_arc_set_range(_arc, 0, 100);
     lv_arc_set_value(_arc, 0);
     lv_obj_remove_style(_arc, nullptr, LV_PART_KNOB);
@@ -313,25 +415,25 @@ bool CodexApp::run(void)
     _quota = makeLabel(_screen, "CTX 0%", lv_color_hex(0x3CB371), 100);
     lv_obj_set_style_text_font(_quota, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_align(_quota, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(_quota, LV_ALIGN_TOP_MID, 0, 176);
+    lv_obj_align(_quota, LV_ALIGN_TOP_MID, 0, 148);
     _agent_count = makeLabel(_screen, "0/0 AGENTS", lv_color_hex(0x8892A6), 160);
     lv_obj_set_style_text_align(_agent_count, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(_agent_count, LV_ALIGN_TOP_MID, 0, 218);
+    lv_obj_align(_agent_count, LV_ALIGN_TOP_MID, 0, 173);
 
     constexpr int positions[6][2] = {
-        { 0, -104 }, { 90, -52 }, { 90, 52 },
-        { 0, 104 }, { -90, 52 }, { -90, -52 },
+        { -104, 76 }, { 0, 76 }, { 104, 76 },
+        { -104, 132 }, { 0, 132 }, { 104, 132 },
     };
     for (int i = 0; i < 6; ++i) {
         _agent_buttons[i] = lv_button_create(_screen);
-        lv_obj_set_size(_agent_buttons[i], 62, 62);
-        lv_obj_align(_agent_buttons[i], LV_ALIGN_CENTER, positions[i][0], positions[i][1] + 4);
+        lv_obj_set_size(_agent_buttons[i], 48, 48);
+        lv_obj_align(_agent_buttons[i], LV_ALIGN_CENTER, positions[i][0], positions[i][1]);
         lv_obj_set_style_radius(_agent_buttons[i], LV_RADIUS_CIRCLE, LV_PART_MAIN);
         lv_obj_set_style_bg_color(_agent_buttons[i], lv_color_hex(0x242424), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(_agent_buttons[i], LV_OPA_COVER, LV_PART_MAIN);
         lv_obj_set_style_border_width(_agent_buttons[i], 2, LV_PART_MAIN);
         lv_obj_set_style_border_color(_agent_buttons[i], lv_color_hex(0x8892A6), LV_PART_MAIN);
-        _agent_labels[i] = makeLabel(_agent_buttons[i], "A1\nIDLE", lv_color_hex(0x8892A6), 58);
+        _agent_labels[i] = makeLabel(_agent_buttons[i], "A1\nIDLE", lv_color_hex(0x8892A6), 46);
         lv_obj_set_style_text_align(_agent_labels[i], LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_center(_agent_labels[i]);
         lv_obj_add_event_cb(_agent_buttons[i], [](lv_event_t *event) {
@@ -347,12 +449,49 @@ bool CodexApp::run(void)
         }, LV_EVENT_CLICKED, this);
     }
 
-    _selected = makeLabel(_screen, "AGENT 1  IDLE", lv_color_hex(0xFFFFFF), 220);
+    _selected = makeLabel(_screen, "AGENT 1  IDLE", lv_color_hex(0xFFFFFF), 320);
     lv_obj_set_style_text_align(_selected, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(_selected, LV_ALIGN_TOP_MID, 0, 278);
-    _detail = makeLabel(_screen, "IDLE", lv_color_hex(0x8892A6), 260);
+    lv_obj_align(_selected, LV_ALIGN_TOP_MID, 0, 198);
+    _detail = makeLabel(_screen, "IDLE", lv_color_hex(0x8892A6), 320);
     lv_obj_set_style_text_align(_detail, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(_detail, LV_ALIGN_TOP_MID, 0, 300);
+    lv_obj_align(_detail, LV_ALIGN_TOP_MID, 0, 216);
+
+    for (int i = 0; i < 3; ++i) {
+        _activities[i] = makeLabel(_screen, "", lv_color_hex(0xAAB4C4), 320);
+        lv_obj_align(_activities[i], LV_ALIGN_TOP_LEFT, 10, 246 + i * 16);
+        lv_obj_add_flag(_activities[i], LV_OBJ_FLAG_HIDDEN);
+    }
+
+    _ask_panel = lv_obj_create(_screen);
+    lv_obj_set_size(_ask_panel, 320, 244);
+    lv_obj_align(_ask_panel, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_style_bg_color(_ask_panel, lv_color_hex(0x202838), 0);
+    lv_obj_set_style_border_width(_ask_panel, 2, 0);
+    lv_obj_set_style_border_color(_ask_panel, lv_color_hex(0xF4C430), 0);
+    _ask_title = makeLabel(_ask_panel, "Codex asks", lv_color_hex(0xFFFFFF), 280);
+    lv_obj_align(_ask_title, LV_ALIGN_TOP_MID, 0, 12);
+    _ask_body = makeLabel(_ask_panel, "", lv_color_hex(0xD7DEEA), 280);
+    lv_obj_align(_ask_body, LV_ALIGN_TOP_MID, 0, 42);
+    for (int i = 0; i < 3; ++i) {
+        _ask_buttons[i] = lv_button_create(_ask_panel);
+        lv_obj_set_size(_ask_buttons[i], 270, 36);
+        lv_obj_align(_ask_buttons[i], LV_ALIGN_TOP_MID, 0, 78 + i * 44);
+        lv_obj_t *button_label = lv_label_create(_ask_buttons[i]);
+        lv_obj_center(button_label);
+        lv_obj_add_event_cb(_ask_buttons[i], [](lv_event_t *event) {
+            auto *self = static_cast<CodexApp *>(lv_event_get_user_data(event));
+            if (!self) return;
+            lv_obj_t *target = static_cast<lv_obj_t *>(lv_event_get_target(event));
+            for (int button = 0; button < 3; ++button) {
+                if (self->_ask_buttons[button] == target) {
+                    self->sendAnswer(button);
+                    break;
+                }
+            }
+        }, LV_EVENT_CLICKED, this);
+        lv_obj_add_flag(_ask_buttons[i], LV_OBJ_FLAG_HIDDEN);
+    }
+    lv_obj_add_flag(_ask_panel, LV_OBJ_FLAG_HIDDEN);
 
     loadBridgeConfig();
     refreshUi();
@@ -361,7 +500,7 @@ bool CodexApp::run(void)
         auto *self = static_cast<CodexApp *>(timer->user_data);
         if (!self) return;
         self->_animation++;
-        if (self->_arc && (strcmp(self->_phase_name, "WORKING") == 0 || strcmp(self->_phase_name, "THINKING") == 0)) {
+        if (self->_arc && (strcmp(self->_phase_name, "WORKING") == 0 || strcmp(self->_phase_name, "STREAMING") == 0 || strcmp(self->_phase_name, "THINKING") == 0 || strcmp(self->_phase_name, "WAITING") == 0)) {
             lv_obj_set_style_opa(self->_arc, static_cast<lv_opa_t>(190 + (self->_animation % 3) * 20), LV_PART_INDICATOR);
         } else if (self->_arc) {
             lv_obj_set_style_opa(self->_arc, LV_OPA_COVER, LV_PART_INDICATOR);
@@ -372,6 +511,7 @@ bool CodexApp::run(void)
             esp_websocket_client_send_text(self->_ws, ping, sizeof(ping) - 1, pdMS_TO_TICKS(1000));
             self->_last_ping_ms = nowMs();
         }
+        if (self->_ask_panel && !lv_obj_has_flag(self->_ask_panel, LV_OBJ_FLAG_HIDDEN) && self->_last_frame_ms && nowMs() - self->_last_frame_ms > 120000) self->hideAsk();
     }, 250, this);
     startTransport();
     return true;
