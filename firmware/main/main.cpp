@@ -116,7 +116,13 @@ extern "C" void app_main(void)
     /* Initialize system modules from original ESP32-S3-Touch-LCD-1.85B-desktop */
     Audio_Play_Init();
     settings_driver_init();
-    wake_word_drv_init();
+    /*
+     * The upstream wake-word task assumes the optional `model` partition has
+     * been populated. Our factory image does not ship those large models; the
+     * old unconditional init therefore dereferences a null AFE/model handle
+     * and reboots before the first LVGL frame. Keep the feature compiled for a
+     * later plugin, but do not start it until a model-aware app enables it.
+     */
 
     /* Scan mp3 files for music player */
     esp_err_t err = get_file_list_by_ext("/sdcard/music", ".mp3", &mp3_files);
