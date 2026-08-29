@@ -279,7 +279,7 @@ void DshApp::sendAnswer(int index)
     cJSON *root = cJSON_CreateObject();
     cJSON_AddStringToObject(root, "t", "answer");
     cJSON_AddStringToObject(root, "id", _ask_id);
-    cJSON_AddStringToObject(root, "option", _ask_option_ids[index]);
+    cJSON_AddStringToObject(root, "choice", _ask_option_ids[index]);
     char *text = cJSON_PrintUnformatted(root);
     if (text) {
         esp_websocket_client_send_text(_ws, text, strlen(text), pdMS_TO_TICKS(1000));
@@ -399,6 +399,11 @@ bool DshApp::run(void)
             lv_obj_set_style_opa(self->_arc, static_cast<lv_opa_t>(190 + (self->_animation % 3) * 20), LV_PART_INDICATOR);
         }
         if (self->_connected && nowMs() - self->_last_frame_ms > kStaleMs) self->setConnection("STALE DATA", 0xFFB454);
+        if (self->_connected && self->_ws && nowMs() - self->_last_ping_ms >= 10000) {
+            constexpr char ping[] = "{\"t\":\"ping\",\"battery\":0,\"charging\":false}";
+            esp_websocket_client_send_text(self->_ws, ping, sizeof(ping) - 1, pdMS_TO_TICKS(1000));
+            self->_last_ping_ms = nowMs();
+        }
         if (self->_ask_panel && !lv_obj_has_flag(self->_ask_panel, LV_OBJ_FLAG_HIDDEN) && self->_last_frame_ms && nowMs() - self->_last_frame_ms > 120000) self->hideAsk();
         if (strcmp(self->_phase_name, "DONE") == 0 && self->_last_done_ms && nowMs() - self->_last_done_ms > kDoneMs) {
             strncpy(self->_phase_name, "IDLE", sizeof(self->_phase_name) - 1);

@@ -53,6 +53,7 @@ private:
     bool _transport_started = false;
     bool _connected = false;
     uint32_t _last_frame_ms = 0;
+    uint32_t _last_ping_ms = 0;
     uint32_t _last_done_ms = 0;
     uint8_t _animation = 0;
 
