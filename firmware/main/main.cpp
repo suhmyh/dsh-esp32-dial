@@ -93,6 +93,8 @@ extern "C" void app_main(void)
     ESP_UTILS_CHECK_ERROR_EXIT(bsp_display_backlight_on(), "Turn on display backlight failed");
     /* Initialize BOOT button as power key (toggle backlight) */
     boot_button_init();
+    /* Keep Wi-Fi as a system service even though the Settings app is removed. */
+    wifi_init_sta();
     /* Configure GUI lock */
     LvLock::registerCallbacks([](int timeout_ms) {
         esp_err_t ret = bsp_display_lock(timeout_ms);
