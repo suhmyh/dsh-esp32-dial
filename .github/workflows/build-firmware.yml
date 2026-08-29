@@ -17,9 +17,13 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: espressif/idf:v5.5.3
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install ESP-IDF
+        uses: espressif/install-esp-idf@v1
+        with:
+          version: v5.5.3
 
       - name: Build ESP-IDF desktop
         working-directory: firmware
