@@ -39,7 +39,9 @@ jobs:
             --flash_size 16MB \
             0x0 build/bootloader/bootloader.bin \
             0x8000 build/partition_table/partition-table.bin \
-            0x10000 build/01_factory.bin
+            # The upstream desktop partition table places the factory app at
+            # 0x20000 (not the Arduino default 0x10000).
+            0x20000 build/01_factory.bin
           ls -la dsh-dial-merged.bin
 
       - name: Report sizes
