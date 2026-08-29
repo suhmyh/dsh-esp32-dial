@@ -15,14 +15,14 @@ namespace {
 constexpr char TAG[] = "CodexApp";
 constexpr uint32_t kStaleMs = 8000;
 
-static systems::base::App::Config makeCodexCoreConfig()
+static esp_brookesia::systems::base::App::Config makeCodexCoreConfig()
 {
-    return systems::base::App::Config::SIMPLE_CONSTRUCTOR("Codex", nullptr, false);
+    return esp_brookesia::systems::base::App::Config::SIMPLE_CONSTRUCTOR("Codex", nullptr, false);
 }
 
-static systems::phone::App::Config makeCodexPhoneConfig(bool use_status_bar, bool use_navigation_bar)
+static esp_brookesia::systems::phone::App::Config makeCodexPhoneConfig(bool use_status_bar, bool use_navigation_bar)
 {
-    auto config = systems::phone::App::Config::SIMPLE_CONSTRUCTOR(nullptr, use_status_bar, use_navigation_bar);
+    auto config = esp_brookesia::systems::phone::App::Config::SIMPLE_CONSTRUCTOR(nullptr, use_status_bar, use_navigation_bar);
     // Keep page 0 reserved for the standalone Xiaolan home page.
     config.app_launcher_page_index = 1;
     return config;
