@@ -8,6 +8,9 @@
 #include "lvgl.h"
 #include "esp_brookesia.hpp"
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
 #include <cstdio>
 #include <cstring>
 
@@ -206,6 +209,7 @@ void DshApp::handleMessage(const char *text, size_t length)
         esp_brookesia::gui::LvLockGuard guard;
         if (strcmp(type, "state") == 0) applyState(root);
         else if (strcmp(type, "ask") == 0) showAsk(root);
+        else if (strcmp(type, "notify") == 0) showNotify(root);
         else if (strcmp(type, "pong") == 0) setConnection("CONNECTED", 0x39D98A);
     }
     cJSON_Delete(root);
@@ -287,6 +291,61 @@ void DshApp::sendAnswer(int index)
     }
     cJSON_Delete(root);
     hideAsk();
+}
+
+void DshApp::showNotify(void *json)
+{
+    auto *root = static_cast<cJSON *>(json);
+    const char *level = jsonString(root, "level");
+    const char *title = jsonString(root, "title");
+    const char *region = jsonString(root, "region");
+    const char *pub = jsonString(root, "pub");
+    const char *want = jsonString(root, "want");
+    cJSON *priceItem = cJSON_GetObjectItemCaseSensitive(root, "price");
+    double price = (priceItem && cJSON_IsNumber(priceItem)) ? priceItem->valuedouble : 0.0;
+
+    // 级别颜色：黄金漏=红，其余(值得看)=绿
+    lv_color_t levelColor = lv_color_hex(0x39D98A);
+    if (strstr(level, "黄金") != nullptr) levelColor = lv_color_hex(0xFF4D4F);
+
+    if (_notify_level) {
+        char buf[32];
+        snprintf(buf, sizeof(buf), "%s", (level && level[0]) ? level : "扫货命中");
+        lv_label_set_text(_notify_level, buf);
+        lv_obj_set_style_text_color(_notify_level, levelColor, 0);
+    }
+    if (_notify_title) lv_label_set_text(_notify_title, (title && title[0]) ? title : "命中");
+    if (_notify_price) {
+        char buf[32];
+        snprintf(buf, sizeof(buf), "￥%.0f", price);
+        lv_label_set_text(_notify_price, buf);
+        lv_obj_set_style_text_color(_notify_price, levelColor, 0);
+    }
+    if (_notify_meta) {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "%s · %s · %s",
+                 (region && region[0]) ? region : "-",
+                 (pub && pub[0]) ? pub : "发布 ?",
+                 (want && want[0]) ? want : "-");
+        lv_label_set_text(_notify_meta, buf);
+    }
+    if (_notify_panel) {
+        lv_obj_set_style_border_color(_notify_panel, levelColor, 0);
+        lv_obj_set_style_opa(_notify_panel, LV_OPA_COVER, 0);
+        lv_obj_remove_flag(_notify_panel, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(_notify_panel);
+    }
+    _notify_ms = nowMs();
+    // "亮灯"：屏幕呼吸动画由定时器驱动（面板整体透明度脉动），无需 BSP 背光依赖
+}
+
+void DshApp::hideNotify()
+{
+    if (_notify_panel) {
+        lv_obj_set_style_opa(_notify_panel, LV_OPA_COVER, 0);
+        lv_obj_add_flag(_notify_panel, LV_OBJ_FLAG_HIDDEN);
+    }
+    _notify_ms = 0;
 }
 
 void DshApp::refreshUi()
@@ -387,6 +446,45 @@ bool DshApp::run(void)
     }
     lv_obj_add_flag(_ask_panel, LV_OBJ_FLAG_HIDDEN);
 
+    // 扫货命中通知面板（收到 bridge 的 notify 帧时亮起）
+    _notify_panel = lv_obj_create(_screen);
+    lv_obj_set_size(_notify_panel, 320, 300);
+    lv_obj_align(_notify_panel, LV_ALIGN_CENTER, 0, 20);
+    lv_obj_set_style_bg_color(_notify_panel, lv_color_hex(0x181E2B), 0);
+    lv_obj_set_style_bg_opa(_notify_panel, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(_notify_panel, 16, 0);
+    lv_obj_set_style_border_width(_notify_panel, 2, 0);
+    lv_obj_set_style_border_color(_notify_panel, lv_color_hex(0x39D98A), 0);
+    lv_obj_set_style_pad_all(_notify_panel, 14, 0);
+
+    _notify_level = makeLabel(_notify_panel, "命中", lv_color_hex(0xFF4D4F), 290);
+    lv_obj_set_style_text_font(_notify_level, &lv_font_montserrat_26, 0);
+    lv_obj_set_style_text_align(_notify_level, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(_notify_level, LV_ALIGN_TOP_MID, 0, 4);
+
+    _notify_title = makeLabel(_notify_panel, "", lv_color_hex(0xFFFFFF), 290);
+    lv_obj_set_style_text_font(_notify_title, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_align(_notify_title, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(_notify_title, LV_ALIGN_TOP_MID, 0, 42);
+
+    _notify_price = makeLabel(_notify_panel, "", lv_color_hex(0xFF4D4F), 290);
+    lv_obj_set_style_text_font(_notify_price, &lv_font_montserrat_26, 0);
+    lv_obj_set_style_text_align(_notify_price, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(_notify_price, LV_ALIGN_TOP_MID, 0, 112);
+
+    _notify_meta = makeLabel(_notify_panel, "", lv_color_hex(0x9AA7BA), 290);
+    lv_obj_set_style_text_align(_notify_meta, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(_notify_meta, LV_ALIGN_TOP_MID, 0, 162);
+
+    _notify_hint = makeLabel(_notify_panel, "点击关闭", lv_color_hex(0x6B7690), 290);
+    lv_obj_set_style_text_align(_notify_hint, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(_notify_hint, LV_ALIGN_BOTTOM_MID, 0, 2);
+    lv_obj_add_event_cb(_notify_panel, [](lv_event_t *event) {
+        auto *self = static_cast<DshApp *>(lv_event_get_user_data(event));
+        if (self) self->hideNotify();
+    }, LV_EVENT_CLICKED, this);
+    lv_obj_add_flag(_notify_panel, LV_OBJ_FLAG_HIDDEN);
+
     loadBridgeConfig();
     refreshUi();
     lv_screen_load(_screen);
@@ -405,6 +503,11 @@ bool DshApp::run(void)
             self->_last_ping_ms = nowMs();
         }
         if (self->_ask_panel && !lv_obj_has_flag(self->_ask_panel, LV_OBJ_FLAG_HIDDEN) && self->_last_frame_ms && nowMs() - self->_last_frame_ms > 120000) self->hideAsk();
+        if (self->_notify_panel && !lv_obj_has_flag(self->_notify_panel, LV_OBJ_FLAG_HIDDEN)) {
+            // 呼吸亮灯效果：面板整体透明度脉动
+            lv_obj_set_style_opa(self->_notify_panel, static_cast<lv_opa_t>(210 + (self->_animation % 3) * 18), 0);
+            if (self->_notify_ms && nowMs() - self->_notify_ms > 30000) self->hideNotify();
+        }
         if (strcmp(self->_phase_name, "DONE") == 0 && self->_last_done_ms && nowMs() - self->_last_done_ms > kDoneMs) {
             strncpy(self->_phase_name, "IDLE", sizeof(self->_phase_name) - 1);
             self->refreshUi();

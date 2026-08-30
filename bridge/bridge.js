@@ -1166,6 +1166,36 @@ const server = createServer((req, res) => {
 		});
 		return;
 	}
+	// /notify — receive a Xianyu(闲鱼) sweep hit from the local sweeper script
+	// and broadcast it to every attached dial device as a `notify` frame.
+	if (req.url === "/notify" && req.method === "POST") {
+		const chunks = [];
+		req.on("data", (c) => chunks.push(c));
+		req.on("end", () => {
+			try {
+				const p = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+				const frame = {
+					t: "notify",
+					title: String(p.title ?? "").slice(0, 80),
+					price: p.price ?? 0,
+					region: String(p.region ?? ""),
+					pub: String(p.pub_time ?? ""),
+					want: String(p.want_count ?? ""),
+					level: String(p.level ?? ""),
+					url: String(p.url ?? ""),
+					at: Date.now(),
+				};
+				broadcast(frame);
+				log(`notify broadcast: ￥${frame.price} ${frame.title.slice(0, 24)}`);
+				res.writeHead(200, { "content-type": "application/json" });
+				res.end(JSON.stringify({ ok: true, devices: devices.size }));
+			} catch (error) {
+				res.writeHead(400, { "content-type": "application/json" });
+				res.end(JSON.stringify({ ok: false, error: error.message }));
+			}
+		});
+		return;
+	}
 	res.writeHead(404, { "content-type": "text/plain" });
 	res.end("not found");
 });
