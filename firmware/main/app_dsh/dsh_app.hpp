@@ -28,6 +28,8 @@ private:
     void showAsk(void *json);
     void hideAsk();
     void sendAnswer(int index);
+    void showNotify(void *json);
+    void hideNotify();
     void refreshUi();
     void setConnection(const char *text, uint32_t color);
 
@@ -43,6 +45,13 @@ private:
     lv_obj_t *_ask_title = nullptr;
     lv_obj_t *_ask_body = nullptr;
     lv_obj_t *_ask_buttons[3] = {};
+    lv_obj_t *_notify_panel = nullptr;
+    lv_obj_t *_notify_level = nullptr;
+    lv_obj_t *_notify_title = nullptr;
+    lv_obj_t *_notify_price = nullptr;
+    lv_obj_t *_notify_meta = nullptr;
+    lv_obj_t *_notify_hint = nullptr;
+    uint32_t _notify_ms = 0;
     lv_timer_t *_timer = nullptr;
 
     esp_websocket_client_handle_t _ws = nullptr;
